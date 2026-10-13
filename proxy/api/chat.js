@@ -1,7 +1,8 @@
 // Proxy to Gemini API. Runs in Frankfurt: Cloudflare is throttled in Russia, Gemini blocks Russian IPs.
 // Key lives in the GEMINI_KEY env var, never in the app.
 const ORIGINS = ['https://appleflash.github.io', 'http://localhost:8000'];
-const MODEL = 'gemini-flash-lite-latest';
+// Simple, fast models with separate free quotas; the next one is tried when the previous fails
+const MODELS = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest'];
 
 const cors = origin => ({
   'Access-Control-Allow-Origin': origin,
@@ -21,22 +22,21 @@ export async function POST(req) {
   const origin = req.headers.get('origin');
   if (!ORIGINS.includes(origin)) return error(origin || '*', 403, `Прокси: адрес ${origin || '(нет Origin)'} не в списке разрешённых`);
   const body = await req.text();
-  const deadline = Date.now() + 55000;
   let res;
-  // Free tier gets 503 first when Google is overloaded; a retry after a pause often passes
-  for (const pause of [0, 1500, 4000]) {
-    await new Promise(r => setTimeout(r, pause));
+  for (const model of MODELS) {
     try {
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_KEY },
         body,
-        signal: AbortSignal.timeout(Math.max(1000, deadline - Date.now())),
+        signal: AbortSignal.timeout(25000),
       });
     } catch {
-      return error(origin, 504, `Прокси: Gemini (${MODEL}) не ответил за 55 с`);
+      res = error(origin, 504, `Прокси: ${MODELS.join(' и ')} не ответили за 25 с`);
+      continue;
     }
-    if (res.status !== 503) break;
+    if (![429, 500, 503].includes(res.status)) break;
   }
   return new Response(res.body, { status: res.status, headers: { ...cors(origin), 'Content-Type': 'application/json' } });
 }
+
