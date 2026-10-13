@@ -1,7 +1,0 @@
-name = "gym-ai"
-main = "worker.js"
-compatibility_date = "2026-09-01"
-
-# Run near Google's servers, not near the user (avoids unsupported-region errors)
-[placement]
-mode = "smart"
