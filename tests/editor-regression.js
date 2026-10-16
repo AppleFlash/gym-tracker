@@ -52,7 +52,8 @@
       check(alerts === 6 && JSON.parse(localStorage.getItem('gym-tracker-v1')).groups[0].items[0].records.length === before + 1, 'Invalid weights must be rejected without saving');
     }
     document.querySelector('[data-action="close"]')?.click();
-    click('#nav [data-id="recommendations"]');
+    click('#nav [data-id="more"]');
+    click('.menu-row[data-id="recommendations"]');
     check(navVisible(), 'Advice tab bar must stay visible');
     click('#nav [data-id="chat"]');
     check(getComputedStyle(document.getElementById('nav')).display === 'none', 'Chat must still hide tabs during keyboard input');
