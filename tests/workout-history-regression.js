@@ -26,8 +26,8 @@
     update();
     nav('more');
     check(document.querySelectorAll('.menu-row').length === 2, 'More must contain two menu rows');
-    click('.menu-row[data-id="recommendations"]');
-    check(document.querySelector('h1').textContent === 'Советы', 'Advice must open from More');
+    click('.menu-row[data-id="data"]');
+    check(document.querySelector('h1').textContent === 'Данные', 'Data must open from More');
     check(document.querySelector('#nav [data-id="more"]').getAttribute('aria-current') === 'page', 'More must stay selected in its subpages');
     click('.back-link');
     click('.menu-row[data-id="history"]');
@@ -97,7 +97,7 @@
     delete oldBackup.history;
     await importData(oldBackup);
     check(Array.isArray(state.history) && state.history.length === 0 && state.done.A.includes('a1'), 'Old backups must import with an empty history and retain progress');
-    check(document.querySelector('h1').textContent === 'Советы', 'A saved legacy Advice tab must still open');
+    check(document.querySelector('h1').textContent === 'Данные', 'A saved legacy Advice tab must migrate to Data');
     const invalid = { ...backup, history: [{}] };
     const beforeInvalid = JSON.stringify(state);
     await importData(invalid);

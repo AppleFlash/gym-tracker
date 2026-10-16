@@ -53,8 +53,8 @@
     }
     document.querySelector('[data-action="close"]')?.click();
     click('#nav [data-id="more"]');
-    click('.menu-row[data-id="recommendations"]');
-    check(navVisible(), 'Advice tab bar must stay visible');
+    click('.menu-row[data-id="data"]');
+    check(navVisible(), 'Data tab bar must stay visible');
     click('#nav [data-id="chat"]');
     check(getComputedStyle(document.getElementById('nav')).display === 'none', 'Chat must still hide tabs during keyboard input');
     const composer = document.querySelector('#chatForm').getBoundingClientRect();
