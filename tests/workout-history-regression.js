@@ -34,6 +34,7 @@
     check(!!document.querySelector('.empty'), 'A new history must be empty');
 
     nav('day');
+    click('[data-action="openWorkout"][data-day="A"]');
     click('[data-action="done"][data-id="a1"]');
     click('[data-action="done"][data-id="a2"]');
     click('[data-action="today"]');
@@ -58,7 +59,7 @@
     check(!document.querySelector('.history-list').textContent.includes('Changed later'), 'History must render saved exercise names');
 
     nav('day');
-    click('.seg-btn[data-id="B"]');
+    click('[data-action="openWorkout"][data-day="B"]');
     for (const exercise of state.days.B) click(`[data-action="done"][data-id="${exercise.id}"]`);
     click('[data-action="finish"]');
     check(state.history.length === 2, 'Several workouts on one day must remain separate entries');
@@ -66,13 +67,14 @@
     check(document.querySelectorAll('.history-card')[0].textContent.includes('100%') && document.querySelectorAll('.history-card')[0].textContent.includes('Все упражнения выполнены'), 'A fully completed workout must show 100% without an unfinished list');
 
     nav('day');
-    click('.seg-btn[data-id="C"]');
+    click('[data-action="openWorkout"][data-day="C"]');
     click('[data-action="finish"]');
     check(state.history.length === 3 && document.querySelector('.percent').textContent === '0%', 'An unfinished workout may be recorded at 0%');
     nav('day');
-    click('.seg-btn[data-id="star"]');
+    click('[data-action="openWorkout"][data-day="star"]');
     check(document.querySelector('[data-action="finish"]').disabled, 'An empty workout must not be finishable');
-    click('.seg-btn[data-id="A"]');
+    click('[data-action="workoutBack"]');
+    click('[data-action="openWorkout"][data-day="A"]');
     click('[data-action="done"][data-id="a1"]');
     click('[data-action="reset"]');
     check(state.history.length === 3 && state.done.A.length === 0, 'Reset must clear progress without adding history');
@@ -103,7 +105,7 @@
     await importData(invalid);
     check(JSON.stringify(state) === beforeInvalid, 'Invalid history import must not replace existing data');
 
-    state = initial();
+    state = initial();state.tab='A';
     state.days.A[0].name = '<img src=x onerror=alert(1)>';
     update();
     click('[data-action="finish"]');
@@ -121,3 +123,4 @@
     else localStorage.setItem(KEY, saved);
   }
 })()
+

@@ -14,6 +14,8 @@
   try {
     check(innerWidth <= 480, 'Run this check with mobile device emulation enabled');
     click('#nav [data-id="day"]');
+    click('[data-action="openWorkout"][data-day="A"]');
+    click('[data-action="openWorkoutExercise"][data-id="a1"]');
     click('[data-action="editDayExercise"]');
     document.querySelector('#editForm input').focus();
     check(parseFloat(getComputedStyle(document.querySelector('#editForm input')).fontSize) >= 16, 'Modal focus must not trigger iOS auto-zoom');
@@ -70,3 +72,4 @@
     setTimeout(() => location.reload(), 1000);
   }
 })()
+

@@ -1,0 +1,72 @@
+// Evaluate in a disposable browser preview. Exercises the complete three-level flow.
+(async () => {
+  const originalState=state,saved=localStorage.getItem(KEY),originalId=exerciseId;
+  const originalAlert=window.alert,originalConfirm=window.confirm,originalSetItem=Storage.prototype.setItem;
+  const failures=[];
+  const check=(ok,message)=>{if(!ok)failures.push(message);};
+  const click=selector=>document.querySelector(selector).click();
+  const input=(selector,value)=>{const el=document.querySelector(selector);el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));};
+  const open=(day,id)=>{goWorkoutPage('workouts');click(`[data-action="openWorkout"][data-day="${day}"]`);click(`[data-action="openWorkoutExercise"][data-id="${id}"]`);};
+  try{
+    window.alert=()=>{};window.confirm=()=>true;
+    state=initial();exerciseId=null;update();
+    check(document.querySelectorAll('[aria-label="Программа тренировок"] .workout-row').length===3,'Root must have A/B/C rows');
+    check(document.getElementById('pageNavigation').hidden,'Root must hide Back');
+    click('[data-action="openWorkout"][data-day="A"]');
+    check(document.querySelectorAll('.exercise-link').length===6,'Day A must list six exercises');
+    check(!!document.querySelector('header .back-link'),'Day must show persistent Back');
+    click('[data-action="done"][data-id="a2"]');
+    check(!exerciseId&&state.done.A.includes('a2'),'Checkbox must mark done without opening exercise');
+    click('[data-action="openWorkoutExercise"][data-id="a1"]');
+    const before=findExercise('incline').records.length;
+    check(document.querySelectorAll('.chart-col').length===before,'Exercise must show weight history immediately');
+    check(!!document.querySelector('[data-action="startWorkoutExercise"]')&&!document.querySelector('#workoutSetsForm'),'Recording must start explicitly');
+    click('[data-action="startWorkoutExercise"]');
+    input('[data-set-field="weight"]','22,5');input('[data-set-field="reps"]','8');
+    click('[data-action="addSet"]');
+    check(document.querySelectorAll('.set-row').length===2,'Add must create a second set');
+    input('.set-row:last-child [data-set-field="reps"]','7');
+    click('[data-action="workoutBack"]');
+    check(document.querySelector('.ex[data-id="a1"]').textContent.includes('В процессе'),'Day must show recording status');
+    click('[data-action="openWorkoutExercise"][data-id="a1"]');
+    check(document.querySelector('.set-row [data-set-field="weight"]').value==='22,5','Back and reopen must retain draft');
+    check(JSON.parse(localStorage.getItem(KEY)).sessions.A.a1.sets.length===2,'Draft sets must be persisted');
+    input('.set-row:last-child [data-set-field="reps"]','0');
+    saveWorkoutExercise();
+    check(!!exerciseId&&!state.done.A.includes('a1')&&findExercise('incline').records.length===before,'Invalid repetitions must not complete or write history');
+    input('.set-row:last-child [data-set-field="reps"]','7');
+    const storageBefore=localStorage.getItem(KEY);
+    Storage.prototype.setItem=function(key,value){if(key===KEY)throw new DOMException('Full','QuotaExceededError');return originalSetItem.call(this,key,value);};
+    saveWorkoutExercise();
+    check(!!exerciseId&&!state.done.A.includes('a1')&&localStorage.getItem(KEY)===storageBefore,'Failed save must preserve draft and stored records');
+    Storage.prototype.setItem=originalSetItem;
+    document.getElementById('workoutSetsForm').requestSubmit();
+    check(!exerciseId&&state.tab==='A'&&state.done.A.includes('a1'),'Save must mark done and return to day');
+    check(findExercise('incline').records.length===before+2&&findExercise('incline').records.at(-1).weight===22.5,'Every set must appear in shared weight history');
+    check(document.querySelector('.ex[data-id="a1"]').textContent.includes('Сохранено в'),'Row must show completion time');
+    open('A','a1');click('[data-action="startWorkoutExercise"]');
+    input('.set-row:first-child [data-set-field="weight"]','23');
+    click('.set-row:last-child [data-action="removeSet"]');
+    document.getElementById('workoutSetsForm').requestSubmit();
+    check(findExercise('incline').records.length===before+1&&findExercise('incline').records.at(-1).weight===23,'Editing must replace this sessions records without duplicates');
+    open('B','b2');check(!document.querySelector('.chart'),'Unlinked exercise must have empty history');
+    click('[data-action="startWorkoutExercise"]');input('[data-set-field="weight"]','0');input('[data-set-field="reps"]','12');
+    document.getElementById('workoutSetsForm').requestSubmit();
+    check(!!state.days.B[1].weightId&&last(findExercise(state.days.B[1].weightId)).weight===0,'Unlinked bodyweight exercise must get a weight history');
+    check(state.sessions.A.a1.sets[0].weight===23,'Another day must not overwrite A session');
+    goWorkoutPage('A');click('[data-action="finish"]');
+    check(state.history[0].exercises[0].sets[0].weight===23&&!!state.history[0].exercises[0].completedAt,'Workout history must snapshot sets and completion time');
+    check(!state.sessions.A.a1&&!!state.sessions.B.b2,'Finish must clear only its own sessions');
+    check(document.querySelector('.session-history').textContent.includes('23 кг'),'Archived sets must be readable');
+    const snapshot=JSON.stringify(state.history);
+    open('A','a1');click('[data-action="startWorkoutExercise"]');goWorkoutPage('A');click('[data-action="reset"]');
+    check(!state.sessions.A.a1&&JSON.stringify(state.history)===snapshot,'Reset must clear drafts without changing history');
+    const old=initial();delete old.sessions;old.tab='B';old.done.B=['b1'];
+    check(prepareHistory(old).tab==='workouts'&&old.done.B.includes('b1')&&!!old.sessions,'Legacy backup must retain progress and open root');
+    return {passed:!failures.length,failures};
+  }finally{
+    Storage.prototype.setItem=originalSetItem;window.alert=originalAlert;window.confirm=originalConfirm;
+    state=originalState;exerciseId=originalId;render();
+    if(saved===null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,saved);
+  }
+})()
