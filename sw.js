@@ -1,5 +1,5 @@
-const CACHE_NAME = 'gym-tracker-pwa-v32';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
+const CACHE_NAME = 'gym-tracker-pwa-v36';
+const SHELL = ['./', './index.html', './app.css', './design-system.css', './design-system.js', './src/adapters/gemini-proxy-gateway.js', './src/adapters/local-storage-repository.js', './src/application/coach.js', './src/application/store.js', './src/application/use-cases.js', './src/domain/catalog.js', './src/domain/history.js', './src/domain/program.js', './src/domain/schema.js', './src/domain/session.js', './src/domain/shared.js', './src/main.js', './src/ui/context.js', './src/ui/events.js', './src/ui/format.js', './src/ui/reorder.js', './src/ui/router.js', './src/ui/screens/chat.js', './src/ui/screens/exercise.js', './src/ui/screens/more.js', './src/ui/screens/weights.js', './src/ui/screens/workouts.js', './src/ui/sheets/catalog.js', './src/ui/sheets/edit.js', './src/ui/shell.js', './src/ui/viewport.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
 });
