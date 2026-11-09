@@ -19,7 +19,7 @@
     gym.state = gym.initial();
     gym.vvMax = innerHeight;
     gym.onVV();
-    for (const tab of ['A', 'more', 'history', 'data', 'weights', 'chat']) {
+    for (const tab of ['A', 'profile', 'history', 'settings', 'exercises', 'chat']) {
       gym.state.tab = tab;
       gym.render();
       await frame();
@@ -41,6 +41,22 @@
     check(!document.body.classList.contains('kb'), 'Keyboard flag must clear after dismissal');
     check(Math.abs(bottom() - innerHeight) < 2, 'Tab bar must return to the display bottom even if visualViewport stays short');
     check(!document.documentElement.style.getPropertyValue('--keyboard-height'), 'Dismissal must remove the keyboard height override');
+
+    // Entering a set at the bottom of a workout: the focused field must stay above the keyboard.
+    const id = gym.uc.startWorkout('A').value;
+    gym.go('A', null, false);
+    document.querySelector('#app .wk-card[data-id="a6"] [data-action="addSet"]').click();
+    const weight = document.querySelector('#app .quick-set [data-draft-field="weight"]');
+    reportedHeight = Math.max(260, innerHeight - 350);
+    gym.onVV();
+    await frame();
+    weight.scrollIntoView({ block: 'nearest' });
+    await frame();
+    const field = weight.getBoundingClientRect();
+    check(document.activeElement === weight && field.top >= 0 && field.bottom <= reportedHeight + 1, 'The quick set field must be visible above the keyboard');
+    check(document.documentElement.scrollWidth <= innerWidth, 'The workout screen must not overflow horizontally');
+    weight.blur();
+    gym.uc.deleteWorkout(id);
     return { passed: !failures.length, failures };
   } finally {
     if (viewportDescriptor) Object.defineProperty(viewport, 'height', viewportDescriptor);

@@ -2,21 +2,23 @@
 import { view } from './context.js';
 import { go, goBack, parentRoute, routeKey } from './router.js';
 import { screenHtml } from './shell.js';
-import * as workouts from './screens/workouts.js';
+import * as home from './screens/home.js';
+import * as workout from './screens/workout.js';
 import * as exercise from './screens/exercise.js';
-import * as weights from './screens/weights.js';
+import * as result from './screens/result.js';
 import * as chat from './screens/chat.js';
-import * as more from './screens/more.js';
+import * as profile from './screens/profile.js';
+import * as sets from './sets.js';
 import * as catalog from './sheets/catalog.js';
+import * as variants from './sheets/variants.js';
 import * as edit from './sheets/edit.js';
 import * as reorder from './reorder.js';
 
-const features = [workouts, exercise, weights, chat, more, catalog, edit, reorder];
+const features = [home, workout, exercise, result, chat, profile, sets, catalog, variants, edit, reorder];
 
 const shellActions = {
   tab: ({ id }) => go(id === 'day' ? 'workouts' : id),
   workoutBack: goBack,
-  chartRange: (dataset, el) => ds.setRange(el.closest('[data-chart]'), dataset.range),
 };
 
 export function bindEvents() {

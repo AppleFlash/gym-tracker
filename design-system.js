@@ -6,7 +6,7 @@ const EASE='cubic-bezier(.32,.72,0,1)',DUR=400;
 const $=s=>document.querySelector(s);
 const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
 const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const api={fresh:false,range:'all',scroll:new Map(),charts:new Map(),onDismiss:()=>{}};
+const api={fresh:false,scroll:new Map(),onDismiss:()=>{}};
 let busy=false;
 
 /* ---------- Screen transitions ---------- */
@@ -111,8 +111,10 @@ api.sheetOpened=(dlg,hadSheet)=>{
 api.sheetClosed=old=>{
   const c=old.cloneNode(true);
   c.removeAttribute('open');c.classList.remove('instant','dragging','settle');c.classList.add('closing');c.inert=true;
-  document.body.append(c);c.showModal();
-  const drop=()=>{if(c.isConnected){c.close();c.remove();}};
+  // Non-modal on purpose: a modal clone would make the page inert until it is gone, eating the next tap or focus.
+  const dim=document.createElement('div');dim.className='sheet-dim closing';
+  document.body.append(dim,c);c.show();
+  const drop=()=>{if(c.isConnected){c.close();c.remove();dim.remove();}};
   c.addEventListener('animationend',ev=>{if(ev.target===c)drop();});setTimeout(drop,600);
 };
 document.addEventListener('pointerdown',ev=>{
@@ -183,27 +185,14 @@ api.alert=({title,message='',actions})=>new Promise(resolve=>{
 });
 api.confirm=(title,message,{ok='OK',destructive=false}={})=>api.alert({title,message,actions:[{label:'Отмена',value:false,cancel:true},{label:ok,value:true,style:destructive?'destructive':'default'}]});
 
-/* ---------- iOS-style line chart ----------
-   Smooth monotone curve (never overshoots the data), translucent area in the line colour, a dot per record.
-   The last point is selected; touch and drag to scrub. */
-const RANGES=[['1m','1М',30],['3m','3М',90],['6m','6М',180],['all','Все',0]];
-const W=340,H=190,PAD_L=8,PAD_R=34,PAD_T=14,PAD_B=24,PW=W-PAD_R,PH=H-PAD_T-PAD_B;
-const inRange=(pts,r)=>{const d=RANGES.find(x=>x[0]===r)?.[2];return d?pts.filter(p=>p.t&&p.t>=Date.now()-d*864e5):pts;};
-const niceStep=(max,n=4)=>{const raw=max/n,p=10**Math.floor(Math.log10(raw)),f=raw/p;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p;};
+/* ---------- Trend chart: weight and reps of one representative set per workout ----------
+   One card, two stacked panels on a shared date axis: weight on top (smooth line, translucent area, dots),
+   reps below. Every value is printed next to its point, so nothing needs touch, hover or a colour legend.
+   A single point is drawn alone, without an invented line. */
+const W=340,PAD_X=22,r1=v=>Math.round(v*10)/10;
 const num=v=>v.toLocaleString('ru-RU',{maximumFractionDigits:2});
-const r1=v=>Math.round(v*10)/10;
 let gradients=0;
-// Value axis hugs the data (like Health) instead of starting at zero, so progress is visible.
-const scale=vals=>{
-  const lo=Math.min(...vals),hi=Math.max(...vals),span=hi-lo||Math.max(1,hi*.2),step=niceStep(span*1.4,3);
-  const bottom=Math.max(0,Math.floor((lo-span*.2)/step)*step),top=Math.max(bottom+step,Math.ceil((hi+span*.1)/step)*step);
-  return{step,bottom,top};
-};
-const geometry=pts=>{
-  const s=scale(pts.map(p=>p.v)),n=pts.length,gap=n>1?(PW-2*PAD_L)/(n-1):0;
-  return{...s,n,gap,x:i=>n>1?PAD_L+i*gap:PW/2,y:v=>PAD_T+PH*(1-(v-s.bottom)/(s.top-s.bottom))};
-};
-// Fritsch–Carlson monotone cubic through the points: smooth, no peaks beyond real values.
+// Fritsch–Carlson monotone cubic through the points: smooth, never overshooting a real value.
 const smooth=P=>{
   const n=P.length;if(n<2)return'';
   const d=[],m=[];
@@ -220,37 +209,30 @@ const smooth=P=>{
   return s;
 };
 const gradient=id=>`<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="ic-stop-top"/><stop offset="1" class="ic-stop-bottom"/></linearGradient></defs>`;
-const lineAndArea=(P,base,gid)=>{const line=smooth(P);return line?`<path class="ic-area" fill="url(#${gid})" d="${line}L${r1(P.at(-1)[0])},${base}L${r1(P[0][0])},${base}Z"/><path class="ic-line" pathLength="1" d="${line}"/>`:'';};
-// Change from the first point of the visible range to the selected one.
-const deltaHtml=(c,pts,i)=>{
-  if(i<1)return'';const d=pts[i].v-pts[0].v,dir=d>0?'up':d<0?'down':'flat';
-  return`<span class="ic-delta ${dir}">${d>0?'+':d<0?'−':''}${e(num(Math.abs(d)))} ${e(c.unit)}</span>`;
-};
-const head=(c,pts,i)=>`<div class="chart-head"><div class="chart-value num" data-ic-val>${e(num(pts[i].v))}<small>${e(c.unit)}</small></div><div class="chart-sub"><span data-ic-sub>${e(pts[i].sub)}</span><span data-ic-delta>${deltaHtml(c,pts,i)}</span></div></div>`;
-function chartBody(id){
-  const c=api.charts.get(id),pts=inRange(c.pts,api.range).slice(-30);
-  if(!pts.length)return'<p class="chart-empty">Нет записей за этот период.</p>';
-  const g=geometry(pts),sel=pts.length-1,base=PAD_T+PH,gid='ic-g'+(++gradients),P=pts.map((p,i)=>[g.x(i),g.y(p.v)]);
-  const every=Math.ceil(pts.length/Math.max(1,Math.floor(PW/54)));
-  let s=gradient(gid);
-  for(let v=g.bottom;v<=g.top+1e-9;v+=g.step){const y=r1(g.y(v));s+=`<line class="ic-grid" x1="0" x2="${PW}" y1="${y}" y2="${y}"/><text class="ic-axis" x="${W}" y="${y}" dy=".35em" text-anchor="end">${e(num(v))}</text>`;}
-  s+=`<line class="ic-rule" x1="${r1(P[sel][0])}" x2="${r1(P[sel][0])}" y1="${PAD_T}" y2="${base}"/>`;
-  s+=lineAndArea(P,base,gid);
-  s+=P.map(([x,y],i)=>`<circle class="ic-dot" style="--i:${i}" cx="${r1(x)}" cy="${r1(y)}" r="3.5"/>`).join('');
-  s+=`<circle class="ic-halo" cx="${r1(P[sel][0])}" cy="${r1(P[sel][1])}" r="11"/><circle class="ic-sel" cx="${r1(P[sel][0])}" cy="${r1(P[sel][1])}" r="5.5"/>`;
-  s+=pts.map((p,i)=>(pts.length-1-i)%every?'':`<text class="ic-axis" x="${r1(g.x(i))}" y="${H-6}" text-anchor="middle">${e(p.label)}</text>`).join('');
-  return head(c,pts,sel)+`<div class="ios-chart ${api.fresh?'fresh':''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${e(c.label)}">${s}</svg><div class="chart-callout"><b></b><span></span></div></div>`;
+const lineAndArea=(P,base,gid)=>{const line=smooth(P);return line?`${gid?`<path class="ic-area" fill="url(#${gid})" d="${line}L${r1(P.at(-1)[0])},${base}L${r1(P[0][0])},${base}Z"/>`:''}<path class="ic-line" pathLength="1" d="${line}"/>`:'';};
+// Values mapped into [top, bottom] with headroom; equal values sit in the middle.
+const yScale=(vals,top,bottom)=>{const lo=Math.min(...vals),hi=Math.max(...vals);return v=>hi===lo?(top+bottom)/2:bottom-(v-lo)/(hi-lo)*(bottom-top);};
+// Weight labels sit above their points, reps labels below, so neither collides with the panel title.
+function panel(cls,title,P,values,fmt,top,bottom,gid,below){
+  let s=`<text class="ic-title" x="0" y="${top-30}">${e(title)}</text>`;
+  s+=lineAndArea(P,bottom,gid);
+  s+=P.map(([x,y],i)=>`<circle class="ic-dot ${cls}" style="--i:${i}" cx="${r1(x)}" cy="${r1(y)}" r="${i===P.length-1?5:3.5}"/><text class="ic-value ${i===P.length-1?'last':''}" x="${r1(x)}" y="${r1(below?y+18:y-10)}" text-anchor="middle">${e(fmt(values[i]))}</text>`).join('');
+  return `<g class="ic-panel ${cls}">${s}</g>`;
 }
-api.chartCard=(id,c)=>{
-  api.charts.set(id,c);
-  return`<section class="card chart-card" data-chart="${e(id)}"><div class="segmented" role="tablist" aria-label="Период" style="--n:${RANGES.length};--i:${RANGES.findIndex(r=>r[0]===api.range)}">${RANGES.map(r=>`<button type="button" role="tab" aria-selected="${r[0]===api.range}" data-action="chartRange" data-range="${r[0]}">${r[1]}</button>`).join('')}</div><div class="chart-body" data-id="${e(id)}">${chartBody(id)}</div></section>`;
-};
-api.setRange=(card,r)=>{
-  api.range=r;
-  const seg=card.querySelector('.segmented'),body=card.querySelector('.chart-body');
-  seg.style.setProperty('--i',RANGES.findIndex(x=>x[0]===r));
-  seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',b.dataset.range===r));
-  api.fresh=true;body.innerHTML=chartBody(body.dataset.id);api.fresh=false;
+// points: [{label, weight, reps}], oldest first.
+api.trendChart=(points,label)=>{
+  const n=points.length;if(!n)return'';
+  const x=i=>n>1?PAD_X+i*(W-2*PAD_X)/(n-1):W/2;
+  const WT=44,WB=132,RT=186,RB=222,H=262,gid=n>1?'ic-g'+(++gradients):null;
+  const wy=yScale(points.map(p=>p.weight),WT,WB),ry=yScale(points.map(p=>p.reps),RT,RB);
+  const PW=points.map((p,i)=>[x(i),wy(p.weight)]),PR=points.map((p,i)=>[x(i),ry(p.reps)]);
+  let s=gid?gradient(gid):'';
+  s+=points.map((p,i)=>`<line class="ic-guide" x1="${r1(x(i))}" x2="${r1(x(i))}" y1="${WT-6}" y2="${RB+6}"/>`).join('');
+  s+=panel('w','Вес, кг',PW,points.map(p=>p.weight),num,WT,WB,gid);
+  s+=panel('r','Повторения',PR,points.map(p=>p.reps),v=>'×'+v,RT,RB,null,true);
+  s+=points.map((p,i)=>`<text class="ic-axis" x="${r1(x(i))}" y="${H-4}" text-anchor="middle">${e(p.label)}</text>`).join('');
+  const summary=points.map(p=>`${p.label}: ${num(p.weight)} кг × ${p.reps}`).join('; ');
+  return`<div class="trend-chart ${api.fresh?'fresh':''}"><svg viewBox="0 -4 ${W} ${H+4}" role="img" aria-label="${e(label)}. ${e(summary)}">${s}</svg></div>`;
 };
 // Compact trend line for list rows: same curve and fill, no axes, last value marked.
 api.sparkline=(values,label='')=>{
@@ -260,25 +242,6 @@ api.sparkline=(values,label='')=>{
   const P=v.map((x,i)=>[v.length>1?p+i*(w-2*p)/(v.length-1):w/2,hi===lo?h/2:p+(h-2*p)*(1-(x-lo)/span)]),[lx,ly]=P.at(-1);
   return`<svg class="sparkline" viewBox="0 0 ${w} ${h}" ${label?`role="img" aria-label="${e(label)}"`:'aria-hidden="true"'}>${gradient(gid)}${lineAndArea(P,h,gid)}<circle class="ic-sel" cx="${r1(lx)}" cy="${r1(ly)}" r="2.6"/></svg>`;
 };
-function pick(ch,ev){
-  const body=ch.closest('.chart-body'),c=api.charts.get(body.dataset.id),pts=inRange(c.pts,api.range).slice(-30),g=geometry(pts);
-  const r=ch.querySelector('svg').getBoundingClientRect(),sx=(ev.clientX-r.left)/r.width*W;
-  const i=g.n>1?Math.max(0,Math.min(g.n-1,Math.round((sx-PAD_L)/g.gap))):0,p=pts[i],x=r1(g.x(i)),y=r1(g.y(p.v));
-  const rule=ch.querySelector('.ic-rule');rule.setAttribute('x1',x);rule.setAttribute('x2',x);
-  ch.querySelectorAll('.ic-sel,.ic-halo').forEach(dot=>{dot.setAttribute('cx',x);dot.setAttribute('cy',y);});
-  body.querySelector('[data-ic-val]').innerHTML=`${e(num(p.v))}<small>${e(c.unit)}</small>`;
-  body.querySelector('[data-ic-sub]').textContent=p.sub;
-  body.querySelector('[data-ic-delta]').innerHTML=deltaHtml(c,pts,i);
-  const co=ch.querySelector('.chart-callout');
-  co.style.left=Math.min(84,Math.max(16,x/W*100))+'%';co.style.top=y/H*100+'%';
-  co.firstChild.textContent=`${num(p.v)} ${c.unit}`;co.lastChild.textContent=p.label;
-}
-document.addEventListener('pointerdown',ev=>{
-  const ch=ev.target.closest('.ios-chart');if(!ch)return;
-  ch._down=true;ch.classList.add('scrub');ch.setPointerCapture(ev.pointerId);pick(ch,ev);
-});
-document.addEventListener('pointermove',ev=>{const ch=ev.target.closest?.('.ios-chart');if(ch?._down)pick(ch,ev);});
-['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,ev=>{const ch=ev.target.closest?.('.ios-chart');if(ch){ch._down=false;ch.classList.remove('scrub');}}));
 
 return api;
 })();

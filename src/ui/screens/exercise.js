@@ -1,53 +1,76 @@
-// Exercise screen: weight chart and history of the catalog item, recording sets of the current workout.
+// Exercise screen. In a workout: last time, today's sets with entry, finish; then chart and history.
+// From the profile ('item' route): the same history of a catalog exercise without the workout part.
+import { slotOf } from '../../domain/program.js';
 import { findItem } from '../../domain/catalog.js';
-import { sessionFor } from '../../domain/session.js';
-import { ctx, view, data, route, applied } from '../context.js';
-import { esc, nice, hasReps, dayTitle, timeLabel, longDate, chartPoints } from '../format.js';
+import { activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, performancesOf, lastPerformance, representativeSet } from '../../domain/workout.js';
+import { ctx, view, data, applied } from '../context.js';
+import { esc, nice, hasReps, dayTitle, shortDate, longDate, setsText, plural, SETS, STATUS_TEXT } from '../format.js';
 import { go } from '../router.js';
+import { setChips, quickRow, isOpen } from '../sets.js';
+import { discuss } from './chat.js';
 
-const savedSets = sets => `<ol class="saved-sets">${sets.map(set => `<li>${nice(set.weight)} кг × ${esc(set.reps)}</li>`).join('')}</ol>`;
-
-function setsForm(session) {
-  const rows = session.sets.map((set, i) => {
-    const id = esc(set.id), n = i + 1;
-    return `<div class="set-row" data-set="${id}"><span>${n}</span><label class="sr" for="set-weight-${id}">Вес подхода ${n}, кг</label><input id="set-weight-${id}" data-set-field="weight" inputmode="decimal" value="${esc(set.weight)}" placeholder="0" required><label class="sr" for="set-reps-${id}">Повторения подхода ${n}</label><input id="set-reps-${id}" data-set-field="reps" inputmode="numeric" value="${esc(set.reps)}" placeholder="8" required><button type="button" class="btn small" data-action="removeSet" data-id="${id}" aria-label="Удалить подход ${n}" ${session.sets.length === 1 ? 'disabled' : ''}>×</button></div>`;
-  }).join('');
-  return `<form id="workoutSetsForm"><div class="set-labels" aria-hidden="true"><span>№</span><span>Вес, кг</span><span>Повторы</span><span></span></div><div class="sets-list">${rows}</div><div class="footer-actions"><button type="button" class="btn" data-action="addSet">+ Подход</button><button type="submit" class="btn primary">Сохранить</button></div><p class="note">Укажите 0 кг для упражнений без отягощения. Сохранение отметит упражнение выполненным.</p></form>`;
+function lastTimeCard(weightId, exceptId) {
+  const last = lastPerformance(data(), weightId, exceptId);
+  return `<section class="card"><h2>Прошлый раз</h2>${last ? `<p class="muted">${esc(longDate(last.workout.date))} · ${dayTitle(last.workout.day)}</p><p class="big-sets">${setsText(last.sets)}</p>` : '<p class="note">Завершённых выполнений пока нет.</p>'}</section>`;
 }
 
-export function exercisePage(day, exercise) {
-  const session = sessionFor(data(), day, exercise.id), records = findItem(data(), exercise.weightId)?.records || [];
-  const chart = records.length
-    ? ds.chartCard('weight-' + exercise.weightId, { pts: chartPoints(records), unit: 'кг', label: 'История рабочего веса: ' + exercise.name })
-    : '<section class="card"><h2>История веса</h2><p class="note">Записей пока нет. Сохраните подходы, чтобы начать историю веса.</p></section>';
-  const started = session ? `<p class="note">Начато в ${timeLabel(session.startedAt)}${session.completedAt ? ' · Сохранено в ' + timeLabel(session.completedAt) : ' · В процессе'}</p>` : '';
-  const body = session && !session.completedAt ? setsForm(session)
-    : `${session?.completedAt ? savedSets(session.sets) : '<p class="note">Начните упражнение, чтобы записать вес и повторения каждого подхода.</p>'}<div class="footer-actions"><button class="btn primary" data-action="startWorkoutExercise">${session?.completedAt ? 'Изменить подходы' : 'Начать упражнение'}</button></div>`;
-  const history = records.length ? `<h2 class="group-title">История</h2><section class="card list" aria-label="История рабочего веса">${[...records].reverse().map(r => `<div class="list-row"><span>${r.date ? esc(longDate(r.date)) : 'Без даты'}</span><span class="num">${nice(r.weight)} кг${hasReps(r) ? ' × ' + esc(r.reps) : ''}</span></div>`).join('')}</section>` : '';
-  return `<h1 class="wrap">${esc(exercise.name)}</h1><p class="lede">${dayTitle(day)} · ${exercise.sets} × ${esc(exercise.range)}</p>
-    ${chart}
-    <section class="card"><h2>Текущая тренировка</h2>${started}
-    ${body}</section>
-    ${history}`;
+// Weight and reps of one representative set per completed workout, last 6, labels always visible.
+function chartCard(weightId) {
+  const runs = performancesOf(data(), weightId).slice(-6);
+  if (!runs.length) return '<section class="card"><h2>Прогресс</h2><p class="note">График появится после первой завершённой тренировки с этим упражнением.</p></section>';
+  const points = runs.map(r => { const s = representativeSet(r.sets); return { label: shortDate(r.workout.date), weight: s.weight, reps: s.reps }; });
+  return `<section class="card chart-card"><h2>Прогресс</h2><p class="note">Основной подход каждого занятия: самый тяжёлый, при равном весе — с большим числом повторений.</p>${ds.trendChart(points, 'Вес и повторения по последним занятиям')}</section>`;
 }
 
-const rerenderIf = result => { if (applied(result)) ctx.render(); };
+function historyBlock(weightId) {
+  const runs = performancesOf(data(), weightId).reverse();
+  return runs.length ? `<h2 class="group-title">История</h2><section class="card list" aria-label="История по занятиям">${runs.map(r => `<details class="history-run"><summary><span>${esc(longDate(r.workout.date))}<small>${dayTitle(r.workout.day)} · ${plural(r.sets.length, SETS)}</small></span><span class="num">${setsText([representativeSet(r.sets)])}</span></summary><p class="big-sets">${setsText(r.sets)}</p></details>`).join('')}</section>` : '';
+}
+
+// Weight journal from before workouts existed: kept apart, never mixed into the chart.
+function legacyRecords(weightId) {
+  const item = findItem(data(), weightId), group = data().groups.find(g => g.items.includes(item));
+  if (!item?.records.length) return '';
+  return `<h2 class="group-title">Ранее сохранённые записи</h2><section class="card list" aria-label="Ранее сохранённые записи">${[...item.records].reverse().map(r => `<button class="list-row rec-row" data-action="editRecord" data-group="${esc(group.id)}" data-id="${esc(item.id)}" data-record="${esc(r.id)}"><span>${r.date ? esc(longDate(r.date)) : 'Без даты'}</span><span class="num">${nice(r.weight)} кг${hasReps(r) ? ' × ' + esc(r.reps) : ''}</span></button>`).join('')}</section><p class="note">Записи журнала из прошлой версии. В график не входят.</p>`;
+}
+
+const discussButton = weightId => weightId ? `<button class="btn block" data-action="discussExercise" data-id="${esc(weightId)}">Обсудить прогресс с ИИ</button>` : '';
+
+export function exercisePage(day, slotId) {
+  const workout = activeWorkoutOf(data(), day), slot = findSlot(workout, slotId), template = slotOf(data(), day, slotId);
+  const variant = slot ? selectedVariant(slot) : template, main = slot ? mainVariant(slot) : template, weightId = variant.weightId;
+  let today = '';
+  if (slot) {
+    const status = slotStatus(data(), workout, slot), others = slot.variants.filter(v => v.id !== variant.id && setsOf(slot, v.id).length);
+    today = `<section class="card"><div class="row"><h2>Сегодня</h2><span class="status-pill s-${status}">${STATUS_TEXT[status]}</span></div>
+      ${setChips(workout, slot, variant.id) || '<p class="note">Подходов пока нет.</p>'}
+      ${others.map(v => `<p class="note">Также: ${esc(v.name)} — ${setsText(setsOf(slot, v.id))}</p>`).join('')}
+      ${isOpen(workout, slot, variant.id) ? quickRow(workout, slot, variant.id) : `<button class="btn small primary" data-action="addSet" data-workout="${esc(workout.id)}" data-slot="${esc(slot.id)}" data-variant="${esc(variant.id)}">+ Подход</button>`}
+      <button class="btn primary block" data-action="completeAndBack" data-id="${esc(slot.id)}">Завершить упражнение</button></section>`;
+  }
+  return `<h1 class="wrap">${esc(variant.name)}</h1><p class="lede">${dayTitle(day)}${variant.id !== main.id ? ' · вместо: ' + esc(main.name) : ''} · ${variant.sets ?? main.sets} × ${esc(variant.range ?? main.range)}</p>
+    ${lastTimeCard(weightId, workout?.id)}${today}${chartCard(weightId)}${historyBlock(weightId)}${legacyRecords(weightId)}${discussButton(weightId)}`;
+}
+
+export function itemPage(itemId) {
+  const item = findItem(data(), itemId);
+  if (!item) return '<div class="empty">Упражнение не найдено.</div>';
+  const group = data().groups.find(g => g.items.includes(item));
+  return `<h1 class="wrap">${esc(item.name)}</h1><p class="lede">${esc(group?.name || '')}</p>${lastTimeCard(item.id)}${chartCard(item.id)}${historyBlock(item.id)}${legacyRecords(item.id)}${discussButton(item.id)}`;
+}
 
 export const actions = {
-  startWorkoutExercise: () => { const r = route(); rerenderIf(ctx.uc.startExercise(r.tab, r.id)); },
-  addSet: () => { const r = route(); rerenderIf(ctx.uc.addSet(r.tab, r.id)); },
-  removeSet: ({ id }) => { const r = route(); rerenderIf(ctx.uc.removeSet(r.tab, r.id, id)); },
+  // Saves a correct open draft, completes the slot and returns to the list; on error stays here.
+  completeAndBack: ({ id }) => {
+    const workout = activeWorkoutOf(data(), data().tab);
+    if (!workout || !applied(ctx.uc.completeSlot(workout.id, id))) return;
+    view.draft = null;
+    go(workout.day);
+  },
+  editRecord: ({ group, id, record }) => { view.modal = { type: 'record', group, id, recordId: record }; ctx.render(); },
+  openItem: ({ id, from }) => { view.itemParent = from || 'exercises'; go('item', id); },
+  discussExercise: ({ id }) => {
+    const name = findItem(data(), id)?.name || 'упражнение';
+    discuss({ kind: 'exercise', weightId: id, label: name }, `Как идёт мой прогресс в упражнении «${name}»? На что обратить внимание?`);
+  },
 };
-
-export const listeners = [
-  ['input', ev => {
-    const field = ev.target.dataset.setField, setId = ev.target.closest('[data-set]')?.dataset.set;
-    if (field && setId) ctx.uc.editSet(data().tab, view.exerciseId, setId, field, ev.target.value);
-  }],
-  ['submit', ev => {
-    if (ev.target.id !== 'workoutSetsForm') return;
-    ev.preventDefault();
-    const r = route();
-    if (applied(ctx.uc.saveExercise(r.tab, r.id))) go(r.tab);
-  }],
-];

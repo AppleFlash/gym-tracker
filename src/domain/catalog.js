@@ -1,4 +1,4 @@
-// Exercise catalog: muscle groups → exercises → weight records. Weight history belongs to the catalog item.
+// Exercise catalog: muscle groups → exercises. Stable ids link program variants and workout sets to one exercise.
 import { uid, fail } from './shared.js';
 import { variantsOf } from './program.js';
 
@@ -63,29 +63,19 @@ export function deleteGroup(data, groupId) {
   data.groups = data.groups.filter(g => g.id !== groupId);
 }
 
-// input: raw form values {weight, reps, date, up}. Reps may be a range like "8–10".
+// Legacy weight journal (records) from before workouts existed. Only corrections are allowed now:
+// new sets are saved in workouts. input: raw form values {weight, reps, date, up}; reps may be a range like "8–10".
 export function saveRecord(data, { group, id, recordId }, input) {
-  const item = groupItem(data, group, id);
-  if (!item) return false;
+  const record = groupItem(data, group, id)?.records.find(r => r.id === recordId);
+  if (!record) return false;
   const weight = Number(String(input.weight || '').replace(',', '.'));
   if (!input.weight || !Number.isFinite(weight) || weight <= 0) fail('Укажите положительный вес');
   const reps = String(input.reps || '').trim();
-  const fields = { weight, reps: reps === '' ? null : reps, date: String(input.date || '') || null, up: !!input.up };
-  const record = recordId && item.records.find(r => r.id === recordId);
-  if (record) Object.assign(record, fields);
-  else item.records.push({ id: uid(), ...fields });
+  Object.assign(record, { weight, reps: reps === '' ? null : reps, date: String(input.date || '') || null, up: !!input.up });
 }
 
 export function removeRecord(data, { group, id, recordId }) {
   const item = groupItem(data, group, id);
-  if (!item) return false;
+  if (!item?.records.some(r => r.id === recordId)) return false;
   item.records = item.records.filter(r => r.id !== recordId);
-}
-
-// Latest record with its change against the previous one; record = heavier than every earlier entry.
-export function recordTrend(item) {
-  const records = item?.records || [], last = records.at(-1);
-  if (!last) return null;
-  const weight = r => Number(r.weight) || 0, earlier = records.slice(0, -1);
-  return { last, delta: earlier.length ? weight(last) - weight(earlier.at(-1)) : 0, record: earlier.length > 0 && weight(last) > Math.max(...earlier.map(weight)) };
 }

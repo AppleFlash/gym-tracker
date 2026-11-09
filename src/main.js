@@ -10,10 +10,7 @@ import { go } from './ui/router.js';
 import { openCatalog } from './ui/sheets/catalog.js';
 import { syncViewport, watchViewport, viewport } from './ui/viewport.js';
 import { initialData, normalize } from './domain/schema.js';
-import { localDate } from './domain/shared.js';
-import { findVariant, activeVariant } from './domain/program.js';
-import { findItem, lastRecord } from './domain/catalog.js';
-import { sessionFor } from './domain/session.js';
+import { findItem } from './domain/catalog.js';
 import { coachPrompt } from './application/coach.js';
 
 const STORAGE_KEY = 'gym-tracker-v1';
@@ -28,6 +25,8 @@ bindEvents();
 watchViewport();
 syncViewport();
 render();
+// Never overwrite unreadable data silently: it was archived, and the user is told where.
+if (store.loadError) alert(`Не удалось прочитать сохранённые данные (${store.loadError.message}). Копия сохранена в браузере под ключом «${store.loadError.copy}». Приложение открыто с начальными данными.`);
 store.persist();
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
@@ -40,21 +39,15 @@ window.gym = {
   get state() { return store.state; }, set state(next) { store.state = next; },
   get exerciseId() { return view.exerciseId; }, set exerciseId(id) { view.exerciseId = id; },
   get modal() { return view.modal; }, set modal(m) { view.modal = m; },
-  get previousProgress() { return view.progress; }, set previousProgress(p) { view.progress = p; },
   get vvMax() { return viewport.max; }, set vvMax(v) { viewport.max = v; },
-  get chat() { return view.chat; }, set chat(c) { view.chat = c; },
-  expandedExercises: view.expanded,
+  view, store, uc: ctx.uc,
   initial: initialData,
-  prepareHistory: normalize,
-  localDate, activeVariant, render,
-  save: () => store.persist(),
+  normalize,
+  render,
   update: () => { store.persist(); render(); },
   onVV: syncViewport,
-  goWorkoutPage: go,
+  go,
   openCatalog,
-  selectedExercise: () => findVariant(store.state, store.state.tab, view.exerciseId),
-  sessionFor: (day, id) => sessionFor(store.state, day, id),
   findExercise: id => findItem(store.state, id),
-  last: lastRecord,
-  aiContext: () => coachPrompt(store.state, new Date()),
+  aiContext: (context = null) => coachPrompt(store.state, new Date(), context),
 };

@@ -1,16 +1,18 @@
 // UI adapter wiring. main.js fills ctx; screens read state through it and call use cases.
 export const ctx = { store: null, uc: null, render: () => {} };
 
-// Screen-only state: never persisted.
+// Screen-only state: never persisted (drafts themselves are persisted by the use cases).
 export const view = {
-  exerciseId: null,          // open exercise inside the current day tab
-  modal: null,               // open sheet: {type: 'catalog'|'record'|'day', ...}
+  exerciseId: null,          // route id: slot in a day, workout for 'result', catalog item for 'item'
+  modal: null,               // open sheet: {type: 'catalog'|'variants'|'record'|'day'|'set', ...}
   sheetDepth: 0,             // catalog push depth, drives push/pop animation
-  expanded: new Set(),       // `${day}:${slotId}` rows with alternatives shown
-  openCharts: new Set(),     // weight journal cards with the chart open
-  query: '',                 // weight journal search
+  draft: null,               // the one open quick-set row: {workoutId, slotId, variantId}
+  query: '',                 // "All exercises" search
+  resultFrom: 'profile',     // where a workout result was opened from: 'workouts' after finishing, else history
+  itemParent: 'exercises',   // 'progress' or 'exercises'
   chat: [], chatBusy: false,
-  progress: { A: 0, B: 0, C: 0, star: 0 }, // last drawn day progress, animates the bar
+  chatContext: null,         // {kind: 'workout', id, label} | {kind: 'exercise', weightId, label}
+  chatPrefill: '',
 };
 
 export const data = () => ctx.store.state;
@@ -20,4 +22,11 @@ export const route = () => ({ tab: data().tab, id: view.exerciseId });
 export function applied(result) {
   if (result?.error) { alert(result.error); return false; }
   return !!result?.ok;
+}
+
+// Re-renders and keeps the reading position (saving a set must not jump the list).
+export function rerender() {
+  const app = document.getElementById('app'), top = app.scrollTop;
+  ctx.render();
+  app.scrollTop = top;
 }

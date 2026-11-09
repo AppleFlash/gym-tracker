@@ -14,7 +14,7 @@ function startDrag(row, y) {
 
 function endDrag() {
   if (!drag) return;
-  const { row, i, j, rects } = drag, day = row.dataset.day;
+  const { row, i, j, rects, list: dragList } = drag, day = row.dataset.day;
   const dy = j > i ? rects[j].bottom - rects[i].bottom : j < i ? rects[j].top - rects[i].top : 0;
   // Swallow the click that ends the drag so it does not open the exercise.
   const eat = e => { e.preventDefault(); e.stopPropagation(); };
@@ -24,7 +24,9 @@ function endDrag() {
   addEventListener('click', eat, true);
   setTimeout(() => {
     removeEventListener('click', eat, true);
-    if (j !== i) applied(ctx.uc.moveExercise(day, i, j));
+    // Cards may differ from the template (slots of a workout), so move by ids within the program.
+    const ids = (ctx.store.state.days[day] || []).map(e => e.id), from = ids.indexOf(row.dataset.id), to = ids.indexOf(dragList[j]?.dataset.id);
+    if (j !== i && from >= 0 && to >= 0) applied(ctx.uc.moveExercise(day, from, to));
     ctx.render();
   }, 180);
 }
@@ -32,7 +34,7 @@ function endDrag() {
 export const listeners = [
   ['pointerdown', ev => {
     const row = ev.target.closest('.ex[data-id]');
-    if (!row || drag || ev.button || ev.target.closest('.alternatives-panel,.alternative-toggle,.check')) return;
+    if (!row || drag || ev.button || ev.target.closest('.wk-actions,.quick-set,.set-chips,.draft-hint,input,textarea')) return;
     if (ev.pointerType === 'mouse') {
       if (ev.target.closest('.drag-handle')) { ev.preventDefault(); startDrag(row, ev.clientY); }
       return;
