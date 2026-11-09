@@ -2,7 +2,7 @@
 import { findItem } from '../../domain/catalog.js';
 import { sessionFor } from '../../domain/session.js';
 import { ctx, view, data, route, applied } from '../context.js';
-import { esc, nice, hasReps, dayTitle, timeLabel, shortDate, longDate } from '../format.js';
+import { esc, nice, hasReps, dayTitle, timeLabel, longDate, chartPoints } from '../format.js';
 import { go } from '../router.js';
 
 const savedSets = sets => `<ol class="saved-sets">${sets.map(set => `<li>${nice(set.weight)} кг × ${esc(set.reps)}</li>`).join('')}</ol>`;
@@ -17,15 +17,14 @@ function setsForm(session) {
 
 export function exercisePage(day, exercise) {
   const session = sessionFor(data(), day, exercise.id), records = findItem(data(), exercise.weightId)?.records || [];
-  const points = records.map((r, i) => ({ v: Number(r.weight) || 0, t: r.date ? Date.parse(r.date + 'T12:00:00') || null : null, label: shortDate(r.date, i), sub: shortDate(r.date, i) + (hasReps(r) ? ' · ' + r.reps + ' повт.' : '') }));
   const chart = records.length
-    ? ds.chartCard('weight-' + exercise.weightId, { pts: points, unit: 'кг', label: 'История рабочего веса: ' + exercise.name })
+    ? ds.chartCard('weight-' + exercise.weightId, { pts: chartPoints(records), unit: 'кг', label: 'История рабочего веса: ' + exercise.name })
     : '<section class="card"><h2>История веса</h2><p class="note">Записей пока нет. Сохраните подходы, чтобы начать историю веса.</p></section>';
   const started = session ? `<p class="note">Начато в ${timeLabel(session.startedAt)}${session.completedAt ? ' · Сохранено в ' + timeLabel(session.completedAt) : ' · В процессе'}</p>` : '';
   const body = session && !session.completedAt ? setsForm(session)
     : `${session?.completedAt ? savedSets(session.sets) : '<p class="note">Начните упражнение, чтобы записать вес и повторения каждого подхода.</p>'}<div class="footer-actions"><button class="btn primary" data-action="startWorkoutExercise">${session?.completedAt ? 'Изменить подходы' : 'Начать упражнение'}</button></div>`;
   const history = records.length ? `<h2 class="group-title">История</h2><section class="card list" aria-label="История рабочего веса">${[...records].reverse().map(r => `<div class="list-row"><span>${r.date ? esc(longDate(r.date)) : 'Без даты'}</span><span class="num">${nice(r.weight)} кг${hasReps(r) ? ' × ' + esc(r.reps) : ''}</span></div>`).join('')}</section>` : '';
-  return `<h1>${esc(exercise.name)}</h1><p class="lede">${dayTitle(day)} · ${exercise.sets} × ${esc(exercise.range)}</p>
+  return `<h1 class="wrap">${esc(exercise.name)}</h1><p class="lede">${dayTitle(day)} · ${exercise.sets} × ${esc(exercise.range)}</p>
     ${chart}
     <section class="card"><h2>Текущая тренировка</h2>${started}
     ${body}</section>

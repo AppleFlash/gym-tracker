@@ -20,7 +20,7 @@
     check(!gym.exerciseId&&gym.state.done.A.includes('a2'),'Checkbox must mark done without opening exercise');
     click('[data-action="openWorkoutExercise"][data-id="a1"]');
     const before=gym.findExercise('incline').records.length;
-    check(document.querySelectorAll('.ic-bar').length===before,'Exercise must show weight history immediately');
+    check(document.querySelectorAll('.ic-dot').length===before,'Exercise must show weight history immediately');
     check(!!document.querySelector('[data-action="startWorkoutExercise"]')&&!document.querySelector('#workoutSetsForm'),'Recording must start explicitly');
     click('[data-action="startWorkoutExercise"]');
     input('[data-set-field="weight"]','22,5');input('[data-set-field="reps"]','8');

@@ -81,3 +81,11 @@ export function removeRecord(data, { group, id, recordId }) {
   if (!item) return false;
   item.records = item.records.filter(r => r.id !== recordId);
 }
+
+// Latest record with its change against the previous one; record = heavier than every earlier entry.
+export function recordTrend(item) {
+  const records = item?.records || [], last = records.at(-1);
+  if (!last) return null;
+  const weight = r => Number(r.weight) || 0, earlier = records.slice(0, -1);
+  return { last, delta: earlier.length ? weight(last) - weight(earlier.at(-1)) : 0, record: earlier.length > 0 && weight(last) > Math.max(...earlier.map(weight)) };
+}

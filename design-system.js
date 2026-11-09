@@ -183,29 +183,63 @@ api.alert=({title,message='',actions})=>new Promise(resolve=>{
 });
 api.confirm=(title,message,{ok='OK',destructive=false}={})=>api.alert({title,message,actions:[{label:'Отмена',value:false,cancel:true},{label:ok,value:true,style:destructive?'destructive':'default'}]});
 
-/* ---------- iOS-style bar chart ----------
-   Hairline grid, labels on the trailing edge, rounded bars, the last bar selected; touch and drag to scrub. */
+/* ---------- iOS-style line chart ----------
+   Smooth monotone curve (never overshoots the data), translucent area in the line colour, a dot per record.
+   The last point is selected; touch and drag to scrub. */
 const RANGES=[['1m','1М',30],['3m','3М',90],['6m','6М',180],['all','Все',0]];
-const W=340,H=190,PAD_R=34,PAD_T=10,PAD_B=24,PW=W-PAD_R,PH=H-PAD_T-PAD_B;
+const W=340,H=190,PAD_L=8,PAD_R=34,PAD_T=14,PAD_B=24,PW=W-PAD_R,PH=H-PAD_T-PAD_B;
 const inRange=(pts,r)=>{const d=RANGES.find(x=>x[0]===r)?.[2];return d?pts.filter(p=>p.t&&p.t>=Date.now()-d*864e5):pts;};
 const niceStep=(max,n=4)=>{const raw=max/n,p=10**Math.floor(Math.log10(raw)),f=raw/p;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p;};
 const num=v=>v.toLocaleString('ru-RU',{maximumFractionDigits:2});
-const barPath=(x,y,w,h,r)=>{r=Math.min(r,w/2,h);return`M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`;};
-const geometry=pts=>{
-  const max=Math.max(1,...pts.map(p=>p.v)),step=niceStep(max),top=step*Math.ceil(max/step),slot=PW/pts.length;
-  return{step,top,slot,y:v=>PAD_T+PH*(1-v/top),cx:i=>i*slot+slot/2};
+const r1=v=>Math.round(v*10)/10;
+let gradients=0;
+// Value axis hugs the data (like Health) instead of starting at zero, so progress is visible.
+const scale=vals=>{
+  const lo=Math.min(...vals),hi=Math.max(...vals),span=hi-lo||Math.max(1,hi*.2),step=niceStep(span*1.4,3);
+  const bottom=Math.max(0,Math.floor((lo-span*.2)/step)*step),top=Math.max(bottom+step,Math.ceil((hi+span*.1)/step)*step);
+  return{step,bottom,top};
 };
-const head=(c,p)=>`<div class="chart-head"><div class="chart-value num" data-ic-val>${e(num(p.v))}<small>${e(c.unit)}</small></div><div class="chart-sub" data-ic-sub>${e(p.sub)}</div></div>`;
+const geometry=pts=>{
+  const s=scale(pts.map(p=>p.v)),n=pts.length,gap=n>1?(PW-2*PAD_L)/(n-1):0;
+  return{...s,n,gap,x:i=>n>1?PAD_L+i*gap:PW/2,y:v=>PAD_T+PH*(1-(v-s.bottom)/(s.top-s.bottom))};
+};
+// Fritsch–Carlson monotone cubic through the points: smooth, no peaks beyond real values.
+const smooth=P=>{
+  const n=P.length;if(n<2)return'';
+  const d=[],m=[];
+  for(let i=0;i<n-1;i++)d.push((P[i+1][1]-P[i][1])/(P[i+1][0]-P[i][0]));
+  m[0]=d[0];m[n-1]=d[n-2];
+  for(let i=1;i<n-1;i++)m[i]=d[i-1]*d[i]<=0?0:(d[i-1]+d[i])/2;
+  for(let i=0;i<n-1;i++){
+    if(!d[i]){m[i]=m[i+1]=0;continue;}
+    const a=m[i]/d[i],b=m[i+1]/d[i],h=a*a+b*b;
+    if(h>9){const t=3/Math.sqrt(h);m[i]=t*a*d[i];m[i+1]=t*b*d[i];}
+  }
+  let s=`M${r1(P[0][0])},${r1(P[0][1])}`;
+  for(let i=0;i<n-1;i++){const dx=(P[i+1][0]-P[i][0])/3;s+=`C${r1(P[i][0]+dx)},${r1(P[i][1]+m[i]*dx)} ${r1(P[i+1][0]-dx)},${r1(P[i+1][1]-m[i+1]*dx)} ${r1(P[i+1][0])},${r1(P[i+1][1])}`;}
+  return s;
+};
+const gradient=id=>`<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="ic-stop-top"/><stop offset="1" class="ic-stop-bottom"/></linearGradient></defs>`;
+const lineAndArea=(P,base,gid)=>{const line=smooth(P);return line?`<path class="ic-area" fill="url(#${gid})" d="${line}L${r1(P.at(-1)[0])},${base}L${r1(P[0][0])},${base}Z"/><path class="ic-line" pathLength="1" d="${line}"/>`:'';};
+// Change from the first point of the visible range to the selected one.
+const deltaHtml=(c,pts,i)=>{
+  if(i<1)return'';const d=pts[i].v-pts[0].v,dir=d>0?'up':d<0?'down':'flat';
+  return`<span class="ic-delta ${dir}">${d>0?'+':d<0?'−':''}${e(num(Math.abs(d)))} ${e(c.unit)}</span>`;
+};
+const head=(c,pts,i)=>`<div class="chart-head"><div class="chart-value num" data-ic-val>${e(num(pts[i].v))}<small>${e(c.unit)}</small></div><div class="chart-sub"><span data-ic-sub>${e(pts[i].sub)}</span><span data-ic-delta>${deltaHtml(c,pts,i)}</span></div></div>`;
 function chartBody(id){
   const c=api.charts.get(id),pts=inRange(c.pts,api.range).slice(-30);
   if(!pts.length)return'<p class="chart-empty">Нет записей за этот период.</p>';
-  const g=geometry(pts),sel=pts.length-1,bw=Math.min(28,g.slot*.62),every=Math.ceil(pts.length/Math.max(1,Math.floor(PW/54)));
-  let s='';
-  for(let i=0;i<=Math.round(g.top/g.step);i++){const y=g.y(i*g.step);s+=`<line class="ic-grid" x1="0" x2="${PW}" y1="${y}" y2="${y}"/><text class="ic-axis" x="${W}" y="${y}" dy=".35em" text-anchor="end">${e(num(i*g.step))}</text>`;}
-  s+=`<line class="ic-rule" x1="${g.cx(sel)}" x2="${g.cx(sel)}" y1="${PAD_T}" y2="${PAD_T+PH}"/>`;
-  s+=pts.map((p,i)=>`<path class="ic-bar ${i===sel?'sel':''}" style="--i:${i}" d="${barPath(g.cx(i)-bw/2,g.y(p.v),bw,Math.max(2,PAD_T+PH-g.y(p.v)),6)}"/>`).join('');
-  s+=pts.map((p,i)=>(pts.length-1-i)%every?'':`<text class="ic-axis" x="${g.cx(i)}" y="${H-6}" text-anchor="middle">${e(p.label)}</text>`).join('');
-  return head(c,pts[sel])+`<div class="ios-chart ${api.fresh?'fresh':''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${e(c.label)}">${s}</svg><div class="chart-callout"><b></b><span></span></div></div>`;
+  const g=geometry(pts),sel=pts.length-1,base=PAD_T+PH,gid='ic-g'+(++gradients),P=pts.map((p,i)=>[g.x(i),g.y(p.v)]);
+  const every=Math.ceil(pts.length/Math.max(1,Math.floor(PW/54)));
+  let s=gradient(gid);
+  for(let v=g.bottom;v<=g.top+1e-9;v+=g.step){const y=r1(g.y(v));s+=`<line class="ic-grid" x1="0" x2="${PW}" y1="${y}" y2="${y}"/><text class="ic-axis" x="${W}" y="${y}" dy=".35em" text-anchor="end">${e(num(v))}</text>`;}
+  s+=`<line class="ic-rule" x1="${r1(P[sel][0])}" x2="${r1(P[sel][0])}" y1="${PAD_T}" y2="${base}"/>`;
+  s+=lineAndArea(P,base,gid);
+  s+=P.map(([x,y],i)=>`<circle class="ic-dot" style="--i:${i}" cx="${r1(x)}" cy="${r1(y)}" r="3.5"/>`).join('');
+  s+=`<circle class="ic-halo" cx="${r1(P[sel][0])}" cy="${r1(P[sel][1])}" r="11"/><circle class="ic-sel" cx="${r1(P[sel][0])}" cy="${r1(P[sel][1])}" r="5.5"/>`;
+  s+=pts.map((p,i)=>(pts.length-1-i)%every?'':`<text class="ic-axis" x="${r1(g.x(i))}" y="${H-6}" text-anchor="middle">${e(p.label)}</text>`).join('');
+  return head(c,pts,sel)+`<div class="ios-chart ${api.fresh?'fresh':''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${e(c.label)}">${s}</svg><div class="chart-callout"><b></b><span></span></div></div>`;
 }
 api.chartCard=(id,c)=>{
   api.charts.set(id,c);
@@ -218,16 +252,25 @@ api.setRange=(card,r)=>{
   seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',b.dataset.range===r));
   api.fresh=true;body.innerHTML=chartBody(body.dataset.id);api.fresh=false;
 };
+// Compact trend line for list rows: same curve and fill, no axes, last value marked.
+api.sparkline=(values,label='')=>{
+  const v=values.map(Number).filter(Number.isFinite).slice(-12);
+  if(!v.length)return'<span class="sparkline empty" aria-hidden="true"></span>';
+  const w=64,h=28,p=3,lo=Math.min(...v),hi=Math.max(...v),span=hi-lo||1,gid='ic-g'+(++gradients);
+  const P=v.map((x,i)=>[v.length>1?p+i*(w-2*p)/(v.length-1):w/2,hi===lo?h/2:p+(h-2*p)*(1-(x-lo)/span)]),[lx,ly]=P.at(-1);
+  return`<svg class="sparkline" viewBox="0 0 ${w} ${h}" ${label?`role="img" aria-label="${e(label)}"`:'aria-hidden="true"'}>${gradient(gid)}${lineAndArea(P,h,gid)}<circle class="ic-sel" cx="${r1(lx)}" cy="${r1(ly)}" r="2.6"/></svg>`;
+};
 function pick(ch,ev){
   const body=ch.closest('.chart-body'),c=api.charts.get(body.dataset.id),pts=inRange(c.pts,api.range).slice(-30),g=geometry(pts);
-  const r=ch.querySelector('svg').getBoundingClientRect();
-  const i=Math.max(0,Math.min(pts.length-1,Math.floor((ev.clientX-r.left)/r.width*W/g.slot))),p=pts[i];
-  ch.querySelectorAll('.ic-bar').forEach((b,k)=>b.classList.toggle('sel',k===i));
-  const rule=ch.querySelector('.ic-rule');rule.setAttribute('x1',g.cx(i));rule.setAttribute('x2',g.cx(i));
+  const r=ch.querySelector('svg').getBoundingClientRect(),sx=(ev.clientX-r.left)/r.width*W;
+  const i=g.n>1?Math.max(0,Math.min(g.n-1,Math.round((sx-PAD_L)/g.gap))):0,p=pts[i],x=r1(g.x(i)),y=r1(g.y(p.v));
+  const rule=ch.querySelector('.ic-rule');rule.setAttribute('x1',x);rule.setAttribute('x2',x);
+  ch.querySelectorAll('.ic-sel,.ic-halo').forEach(dot=>{dot.setAttribute('cx',x);dot.setAttribute('cy',y);});
   body.querySelector('[data-ic-val]').innerHTML=`${e(num(p.v))}<small>${e(c.unit)}</small>`;
   body.querySelector('[data-ic-sub]').textContent=p.sub;
+  body.querySelector('[data-ic-delta]').innerHTML=deltaHtml(c,pts,i);
   const co=ch.querySelector('.chart-callout');
-  co.style.left=Math.min(84,Math.max(16,g.cx(i)/W*100))+'%';co.style.top=g.y(p.v)/H*100+'%';
+  co.style.left=Math.min(84,Math.max(16,x/W*100))+'%';co.style.top=y/H*100+'%';
   co.firstChild.textContent=`${num(p.v)} ${c.unit}`;co.lastChild.textContent=p.label;
 }
 document.addEventListener('pointerdown',ev=>{

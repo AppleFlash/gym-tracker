@@ -30,7 +30,8 @@ function tabBarHtml() {
 function navBarHtml(r) {
   const p = parentRoute(r);
   const back = p ? `<button class="nav-back" data-action="workoutBack" aria-label="Назад: ${esc(routeTitle(p))}">${chevron}<span>${esc(routeTitle(p))}</span></button>` : '';
-  const action = !DAYS.includes(r.tab) ? ''
+  const action = r.tab === 'weights' ? '<button class="nav-action" data-action="openCatalog" aria-label="База упражнений">База</button>'
+    : !DAYS.includes(r.tab) ? ''
     : r.id ? `<button class="nav-action" data-action="editDayExercise" data-day="${r.tab}" data-id="${esc(r.id)}">Изменить</button>`
     : `<button class="nav-action" data-action="addDayExercise" data-day="${r.tab}" aria-label="Добавить упражнение">${plusIcon}</button>`;
   return `<div class="navbar"><div class="navbar-bar"><div class="nav-side">${back}</div><div class="nav-title">${r.tab === 'chat' ? 'Чат' : ''}</div><div class="nav-side end">${action}</div></div></div>`;

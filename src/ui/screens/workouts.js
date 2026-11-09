@@ -1,9 +1,9 @@
 // Workouts list and a day's program: completion marks, alternatives, finish/reset.
-import { variantsOf, activeVariant, slotOf, isDone, dayProgress } from '../../domain/program.js';
-import { findItem, lastRecord } from '../../domain/catalog.js';
+import { variantsOf, activeVariant, slotOf, isDone, dayProgress, suggestedDay, nextSlot } from '../../domain/program.js';
+import { findItem, lastRecord, recordTrend } from '../../domain/catalog.js';
 import { sessionFor } from '../../domain/session.js';
 import { ctx, view, data, applied } from '../context.js';
-import { esc, dayTitle, displayRecord, timeLabel, ring } from '../format.js';
+import { esc, dayTitle, displayRecord, timeLabel, ring, trendChip } from '../format.js';
 import { go } from '../router.js';
 import { openCatalog } from '../sheets/catalog.js';
 
@@ -15,11 +15,11 @@ export function exerciseStatus(day, exercise) {
 }
 
 function exerciseRow(day, exercise) {
-  const chosen = activeVariant(exercise), record = lastRecord(findItem(data(), chosen.weightId)), done = isDone(data(), day, exercise.id);
+  const chosen = activeVariant(exercise), item = findItem(data(), chosen.weightId), record = lastRecord(item), done = isDone(data(), day, exercise.id);
   const expanded = view.expanded.has(day + ':' + exercise.id), status = exerciseStatus(day, chosen), id = esc(exercise.id), name = esc(exercise.name);
   return `<div class="ex ${done ? 'completed' : ''}" data-id="${id}" data-day="${day}">
     <div class="ex-main"><button class="check ${done ? 'checked' : ''}" aria-label="${done ? 'Снять отметку' : 'Отметить выполнение'}: ${name}" aria-pressed="${done}" data-action="done" data-id="${id}" data-day="${day}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11.5l4 4 8-8"/></svg></button>
-    <button class="exercise-link" data-action="openWorkoutExercise" data-day="${day}" data-id="${id}"><span class="ex-name">${name}</span><span class="ex-meta">${chosen.id !== exercise.id ? 'Выбрано: ' + esc(chosen.name) + '<br>' : ''}${chosen.sets} × ${esc(chosen.range)} ${record ? '· ' + displayRecord(record) : ''}${status ? '<br>' + status : ''}</span></button>
+    <button class="exercise-link" data-action="openWorkoutExercise" data-day="${day}" data-id="${id}"><span class="ex-name">${name}</span><span class="ex-meta">${chosen.id !== exercise.id ? 'Выбрано: ' + esc(chosen.name) + '<br>' : ''}${chosen.sets} × ${esc(chosen.range)} ${record ? '· ' + displayRecord(record) : ''} ${trendChip(recordTrend(item))}${status ? '<br>' + status : ''}</span></button>
     <button class="alternative-toggle" data-action="toggleAlternatives" data-day="${day}" data-id="${id}" aria-label="Аналогичные упражнения: ${name}" aria-expanded="${expanded}" aria-controls="alternatives-${id}"><span aria-hidden="true">›</span></button>
     <span class="drag-handle" title="Перетащить" aria-hidden="true">⠿</span></div>
     <div class="alternatives-panel" id="alternatives-${id}" ${expanded ? '' : 'hidden'}>
@@ -31,20 +31,34 @@ function exerciseRow(day, exercise) {
     </div></div>`;
 }
 
+const HERO_REASON = { today: 'Сегодня', started: 'В процессе', next: 'Следующая по плану' };
+
+// The one thing to do now: the suggested day, its ring and the next exercise to open.
+function heroHtml(fresh) {
+  const { day, reason } = suggestedDay(data()), p = dayProgress(data(), day), slot = nextSlot(data(), day);
+  let next;
+  if (!p.total) next = '<p class="note hero-note">В этой тренировке пока нет упражнений. Откройте её, чтобы добавить первое.</p>';
+  else if (slot) {
+    const e = activeVariant(slot), record = lastRecord(findItem(data(), e.weightId));
+    next = `<button class="hero-next" data-action="openWorkoutExercise" data-day="${day}" data-id="${esc(slot.id)}"><span class="hero-next-body"><span class="hero-next-label">${p.done ? 'Дальше' : 'Начните с'}</span><strong>${esc(e.name)}</strong><span class="muted">${e.sets} × ${esc(e.range)}${record ? ' · ' + displayRecord(record) : ''}</span></span><span class="row-chevron" aria-hidden="true">›</span></button>`;
+  } else next = `<button class="btn primary block" data-action="finish" data-day="${day}">Завершить тренировку</button>`;
+  return `<section class="card hero ${fresh}" aria-label="Тренировка сейчас"><button class="hero-top" data-action="openWorkout" data-day="${day}">${ring(p.pct, day === 'star' ? '★' : day, 'lg')}<span class="hero-title"><span class="hero-reason">${HERO_REASON[reason]}</span><strong>${dayTitle(day)}</strong><span class="muted">${p.done} из ${p.total} упражнений</span></span></button>${next}</section>`;
+}
+
 export function workoutsPage() {
   const row = day => {
     const p = dayProgress(data(), day);
     return `<button class="workout-row" data-action="openWorkout" data-day="${day}">${ring(p.pct, day === 'star' ? '★' : day)}<span class="workout-row-body"><strong>${dayTitle(day)}</strong><span class="muted">${p.done} из ${p.total} упражнений${data().today === day ? '<span class="today-tag">Сегодня</span>' : ''}</span></span><span class="row-chevron" aria-hidden="true">›</span></button>`;
   };
   const fresh = ds.fresh ? 'fresh' : '';
-  return `<h1>Тренировки</h1><section class="card workout-list ${fresh}" aria-label="Программа тренировок">${['A', 'B', 'C'].map(row).join('')}</section><h2 class="group-title">Дополнительно</h2><section class="card workout-list ${fresh}" aria-label="Дополнительные тренировки">${row('star')}</section>`;
+  return `<h1>Тренировки</h1>${heroHtml(fresh)}<h2 class="group-title">Программа</h2><section class="card workout-list ${fresh}" aria-label="Программа тренировок">${['A', 'B', 'C'].map(row).join('')}</section><h2 class="group-title">Дополнительно</h2><section class="card workout-list ${fresh}" aria-label="Дополнительные тренировки">${row('star')}</section>`;
 }
 
 export function dayPage(day) {
   const exercises = data().days[day] || [], p = dayProgress(data(), day), on = data().today === day;
   return `<h1>${dayTitle(day)}</h1>
   <section class="card list"><button type="button" class="list-row row-switch" data-action="today" data-id="${day}" role="switch" aria-checked="${on}"><span>Сегодняшняя тренировка</span><span class="switch" aria-hidden="true"></span></button></section>
-  <section class="card"><div class="row"><div><div class="muted">Прогресс тренировки</div><strong>${p.done} из ${p.total} упражнений</strong></div><div class="percent">${p.pct}%</div></div><div class="progress" role="progressbar" aria-valuenow="${p.pct}" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="width:${p.pct}%"></div></div></section>
+  <section class="card progress-card"><div class="row"><div><div class="muted">Прогресс тренировки</div><strong>${p.done} из ${p.total} упражнений</strong></div><div class="percent">${p.pct}%</div></div><div class="progress" role="progressbar" aria-valuenow="${p.pct}" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="width:${p.pct}%"></div></div></section>
   <section class="card exercise-list" aria-label="Упражнения">${exercises.length ? exercises.map(e => exerciseRow(day, e)).join('') : '<div class="empty">Пока нет упражнений. Добавьте первое.</div>'}</section>
   <div class="footer-actions stacked"><button class="btn primary block" data-action="finish" data-day="${day}" ${exercises.length ? '' : 'disabled'}>Завершить тренировку</button><button class="btn danger block" data-action="reset" data-day="${day}">Сбросить прогресс</button></div>
   <p class="note">«Завершить тренировку» сохраняет результат в историю и очищает отметки. «Сбросить прогресс» очищает отметки без записи в историю.</p>`;
@@ -54,6 +68,8 @@ export function dayPage(day) {
 export function animateDayProgress(day) {
   const bar = document.querySelector('.progress-fill'), target = dayProgress(data(), day).pct;
   if (bar) { bar.style.width = view.progress[day] + '%'; requestAnimationFrame(() => { bar.style.width = target + '%'; }); }
+  // The day just got closed: one celebratory glow, only in answer to the last check.
+  if (bar && target === 100 && view.progress[day] > 0 && view.progress[day] < 100) bar.closest('.progress-card').classList.add('celebrate');
   view.progress[day] = target;
 }
 

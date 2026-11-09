@@ -81,3 +81,14 @@ export function resetDay(data, day) {
   data.done[day] = [];
   if (data.sessions) data.sessions[day] = {};
 }
+
+// Which day to offer first: the one marked for today, else one already in progress, else the next in A→B→C rotation.
+export function suggestedDay(data) {
+  if (data.today) return { day: data.today, reason: 'today' };
+  const started = DAYS.find(day => { const p = dayProgress(data, day); return p.done > 0 && p.done < p.total; });
+  if (started) return { day: started, reason: 'started' };
+  const rotation = ['A', 'B', 'C'];
+  return { day: rotation[(rotation.indexOf(data.lastDay) + 1) % rotation.length], reason: 'next' };
+}
+
+export const nextSlot = (data, day) => (data.days[day] || []).find(e => !isDone(data, day, e.id));
