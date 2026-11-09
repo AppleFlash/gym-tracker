@@ -1,0 +1,81 @@
+// Evaluate in a disposable preview. The catalog is the only source for workout entries.
+(() => {
+  const originalState=state,originalId=exerciseId,saved=localStorage.getItem(KEY);
+  const originalAlert=window.alert,originalSetItem=Storage.prototype.setItem;
+  const failures=[],check=(ok,message)=>{if(!ok)failures.push(message);};
+  const click=selector=>document.querySelector(selector).click();
+  const create=name=>{
+    click('[data-action="catalogNewExercise"]');
+    document.querySelector('#catalogForm [name="name"]').value=name;
+    document.getElementById('catalogForm').requestSubmit();
+  };
+  const pick=id=>click(`[data-action="catalogPick"][data-id="${id}"]`);
+  try{
+    let alerts=0;window.alert=()=>alerts++;
+    state=initial();exerciseId=null;goWorkoutPage('star');
+    const add=document.querySelector('[data-action="addDayExercise"]');
+    check(add.getBoundingClientRect().top<document.querySelector('.exercise-list').getBoundingClientRect().top,'Add exercise must appear above the exercise table');
+    click('[data-action="addDayExercise"]');
+    check(!!document.querySelector('[aria-label="Группы мышц"]')&&!document.querySelector('#editForm'),'Adding must open muscle categories instead of a free text workout form');
+    click('[data-action="catalogGroup"][data-id="chest"]');
+    check(document.getElementById('catalogTitle').textContent==='Грудь','Category row must open its exercises');
+    const count=state.groups.find(g=>g.id==='chest').items.length;
+    create('Каталог: новый жим');
+    const item=state.groups.find(g=>g.id==='chest').items.at(-1);
+    check(item.name==='Каталог: новый жим'&&item.records.length===0,'Create must store exercise in the chosen category');
+    check(state.days.star.length===0&&!Object.keys(state.sessions).length,'Creating catalog entry must not attach it or start a workout');
+    check(!!document.querySelector(`[data-action="catalogPick"][data-id="${item.id}"]`),'Created item must be immediately selectable');
+    create('каталог: новый жим');
+    check(alerts===1&&state.groups.find(g=>g.id==='chest').items.length===count+1,'Duplicate names in a category must not create duplicate items');
+    click('[data-action="catalogCancelEdit"]');
+    pick(item.id);
+    const parent=state.days.star[0];
+    check(!modal&&parent.weightId===item.id&&parent.name===item.name,'Picking must reference the catalog source and close the picker');
+    check(!state.done.star.length&&parent.sets===3,'Picking must not mark completion');
+    click('[data-action="addDayExercise"]');click('[data-action="catalogGroup"][data-id="chest"]');
+    check(document.querySelector(`[data-action="catalogPick"][data-id="${item.id}"]`).disabled,'An existing workout item must be identified as already added');
+    click('[data-action="catalogBack"]');check(!modal.group,'Catalog back must return to categories');
+    click('[data-action="close"]');check(!modal&&state.days.star.length===1,'Close must return without adding anything');
+    click(`[data-action="toggleAlternatives"][data-id="${parent.id}"]`);
+    click(`[data-action="addAlternative"][data-id="${parent.id}"]`);
+    check(!!document.querySelector('[aria-label="Группы мышц"]'),'Alternatives must open the same category picker');
+    click('[data-action="catalogGroup"][data-id="back"]');pick('lat');
+    const variant=state.days.star[0].alternatives[0];
+    check(variant.weightId==='lat'&&variant.name===findExercise('lat').name,'Alternative must reference the chosen existing source');
+    check(!state.done.star.length&&!Object.keys(state.sessions).length,'Alternative selection must not execute the workout');
+    goWorkoutPage('A');click('[data-action="addDayExercise"]');click('[data-action="catalogGroup"][data-id="chest"]');pick(item.id);
+    check(state.days.A.at(-1).weightId===state.days.star[0].weightId,'Different workouts must share the same catalog identity');
+    openCatalog();click('[data-action="catalogGroup"][data-id="chest"]');
+    click(`[data-action="catalogEditExercise"][data-id="${item.id}"]`);
+    document.querySelector('#catalogForm [name="name"]').value='Обновлённый жим';
+    document.getElementById('catalogForm').requestSubmit();
+    check(state.days.A.at(-1).name==='Обновлённый жим'&&state.days.star[0].name==='Обновлённый жим','Catalog rename must propagate to all program references');
+    const beforeFailure=JSON.stringify(state),stored=localStorage.getItem(KEY);
+    click('[data-action="catalogNewExercise"]');
+    document.querySelector('#catalogForm [name="name"]').value='Не сохранено';
+    Storage.prototype.setItem=function(key,value){if(key===KEY)throw new DOMException('Full','QuotaExceededError');return originalSetItem.call(this,key,value);};
+    document.getElementById('catalogForm').requestSubmit();
+    check(JSON.stringify(state)===beforeFailure&&localStorage.getItem(KEY)===stored&&!!document.querySelector('#catalogForm'),'Storage failure must leave catalog and form intact');
+    Storage.prototype.setItem=originalSetItem;
+    document.querySelector('dialog').dispatchEvent(new Event('cancel',{cancelable:true}));
+    check(!modal,'Escape/cancel must close the catalog from the creation form');
+    const legacy=initial(),records=JSON.stringify(legacy.groups[0].items[0].records);
+    legacy.groups.push({id:'workout-records',name:'Тренировки',items:[{id:'legacy-weight',name:'Жим в старом тренажёре',records:[{id:'legacy-record',weight:35,reps:10}]}]});
+    legacy.days.B.push({id:'legacy-linked',name:'Жим в старом тренажёре',sets:3,range:'10',weightId:'legacy-weight'});
+    legacy.days.A.push({id:'legacy-entry',name:'Старое упражнение',sets:2,range:'10',alternatives:[{id:'legacy-variant',name:'Старый аналог',sets:2,range:'12'}]});
+    legacy.done.A=['legacy-entry'];
+    const migrated=prepareHistory(legacy),migratedEntry=migrated.days.A.at(-1);
+    check(!migrated.groups.some(g=>g.id==='workout-records')&&migrated.groups.find(g=>g.id==='chest').items.some(i=>i.id==='legacy-weight'&&i.records[0].id==='legacy-record'),'Old automatic journals must move to a muscle category without changing records or references');
+    check(migrated.groups.some(g=>g.items.some(i=>i.id===migratedEntry.weightId))&&!!migratedEntry.alternatives[0].weightId,'Migration must register both old program entries and alternatives');
+    const size=migrated.groups.flatMap(g=>g.items).length;
+    prepareHistory(migrated);
+    check(migrated.groups.flatMap(g=>g.items).length===size&&JSON.stringify(migrated.groups[0].items[0].records)===records&&migrated.done.A.includes('legacy-entry'),'Migration must be idempotent and preserve records and progress');
+    click('#nav [data-id="weights"]');
+    check(!document.querySelector('[data-action="addExercise"],[data-action="addGroup"]')&&!!document.querySelector('[data-action="openCatalog"]'),'Journal must route exercise creation through the catalog');
+    return {passed:!failures.length,failures};
+  }finally{
+    Storage.prototype.setItem=originalSetItem;window.alert=originalAlert;
+    state=originalState;exerciseId=originalId;modal=null;render();
+    if(saved===null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,saved);
+  }
+})()

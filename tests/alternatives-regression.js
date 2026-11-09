@@ -7,8 +7,12 @@
   const input=(selector,value)=>{const el=document.querySelector(selector);el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));};
   const add=name=>{
     click('[data-action="addAlternative"][data-id="a1"]');
-    const form=document.getElementById('editForm');
+    click('[data-action="catalogGroup"][data-id="chest"]');
+    click('[data-action="catalogNewExercise"]');
+    const form=document.getElementById('catalogForm');
     form.elements.name.value=name;form.requestSubmit();
+    const item=state.groups.find(g=>g.id==='chest').items.at(-1);
+    click(`[data-action="catalogPick"][data-id="${item.id}"]`);
     return state.days.A[0].alternatives.at(-1).id;
   };
   const select=id=>click(`[data-action="selectWorkoutVariant"][data-variant="${id}"]`);
@@ -58,8 +62,14 @@
     check(!Object.keys(state.sessions.A).length,'Finish must clear all variant sessions in this day');
     const snapshot=JSON.stringify(state.history);
     goWorkoutPage('A');select(first);open();click('[data-action="editDayExercise"]');
-    document.querySelector('#editForm [name="name"]').value='Новое название';
-    document.getElementById('editForm').requestSubmit();
+    check(!document.querySelector('#editForm [name="name"]'),'Program editor must not create or rename an exercise outside catalog');
+    click('[data-action="close"]');
+    openCatalog();click('[data-action="catalogGroup"][data-id="chest"]');
+    const catalogId=state.days.A[0].alternatives.find(e=>e.id===first).weightId;
+    click(`[data-action="catalogEditExercise"][data-id="${catalogId}"]`);
+    document.querySelector('#catalogForm [name="name"]').value='Новое название';
+    document.getElementById('catalogForm').requestSubmit();
+    click('[data-action="close"]');
     check(JSON.stringify(state.history)===snapshot,'Editing alternative must not rewrite archived snapshots');
     click('[data-action="editDayExercise"]');click('[data-action="removeModal"]');
     check(!state.days.A[0].alternatives.some(e=>e.id===first)&&activeVariant(state.days.A[0]).id==='a1','Deleting selected alternative must return selection to original');
