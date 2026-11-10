@@ -1,11 +1,12 @@
 // Profile: four tiles leading to progress, workout history, all exercises and settings.
-import { catalogItems, groupDeleteError, findGroup } from '../../domain/catalog.js';
+import { catalogItems } from '../../domain/catalog.js';
 import { progressList, historyNewestFirst, performancesOf, representativeSet } from '../../domain/workout.js';
 import { ctx, view, data, applied } from '../context.js';
-import { esc, shortDate, longDate, setText, plural, trashIcon } from '../format.js';
+import { esc, shortDate, longDate, setText, plural } from '../format.js';
 import { go } from '../router.js';
-import { historyRow } from './result.js';
+import { historyChartPage } from './history.js';
 import { openCatalog } from '../sheets/catalog.js';
+import { catalogBrowser } from '../catalog-list.js';
 
 const EXERCISES_WITH_HISTORY = ['упражнение', 'упражнения', 'упражнений'];
 
@@ -15,7 +16,7 @@ export function profilePage() {
   return `<h1>Профиль</h1><div class="tiles">
     ${tile('progress', 'Прогресс', progress ? plural(progress, EXERCISES_WITH_HISTORY) + ' с историей' : 'Пока нет данных')}
     ${tile('history', 'История', last ? 'Последняя ' + esc(shortDate(last.date)) : 'Пока нет тренировок')}
-    ${tile('exercises', 'Все упражнения', plural(catalogItems(data()).length, EXERCISES_WITH_HISTORY) + ' в базе')}
+    ${tile('exercises', 'Все упражнения', plural(catalogItems(data()).filter(i => !i.archived).length, EXERCISES_WITH_HISTORY) + ' в базе')}
     ${tile('settings', 'Настройки', goal ? esc(goal.length > 60 ? goal.slice(0, 57) + '…' : goal) : 'Цель не задана')}
   </div>`;
 }
@@ -30,27 +31,10 @@ export function progressPage() {
 }
 
 export function historyPage() {
-  const workouts = historyNewestFirst(data());
-  return `<h1>История</h1>${workouts.length ? `<section class="card menu-list">${workouts.map(historyRow).join('')}</section>` : '<div class="empty">Здесь появятся завершённые тренировки.</div>'}`;
+  return historyChartPage();
 }
 
-function exerciseRows(group, items) {
-  return items.map(i => {
-    const runs = performancesOf(data(), i.id).length;
-    return `<button class="list-row" data-action="openItem" data-id="${esc(i.id)}" data-from="exercises"><span class="progress-name"><strong>${esc(i.name)}</strong><small>${runs ? plural(runs, ['занятие', 'занятия', 'занятий']) : 'Нет завершённых занятий'}${i.records.length ? ` · ${plural(i.records.length, ['старая запись', 'старые записи', 'старых записей'])}` : ''}</small></span><span class="row-chevron" aria-hidden="true">›</span></button>`;
-  }).join('');
-}
-
-const groupsHtml = () => {
-  const q = view.query.trim().toLowerCase(), has = s => s.toLowerCase().includes(q);
-  return data().groups.map(g => {
-    const items = !q || has(g.name) ? g.items : g.items.filter(i => has(i.name));
-    if (q && !items.length) return '';
-    return `<div class="w-group-head"><h2 class="group-title">${esc(g.name)}</h2><button class="icon-btn" data-action="deleteGroup" data-group="${esc(g.id)}" aria-label="Удалить группу «${esc(g.name)}»">${trashIcon}</button></div><section class="card list">${items.length ? exerciseRows(g, items) : '<p class="note w-empty">В группе пока нет упражнений.</p>'}</section>`;
-  }).join('') || (q ? '<div class="empty">Ничего не найдено</div>' : '');
-};
-
-export const exercisesPage = () => `<h1>Все упражнения</h1><div class="search"><input type="search" id="wsearch" placeholder="Поиск по группам и упражнениям" value="${esc(view.query)}" autocomplete="off" aria-label="Поиск"><button type="button" class="search-x" data-action="clearSearch" aria-label="Очистить поиск" ${view.query ? '' : 'hidden'}>✕</button></div><div id="wlist">${groupsHtml()}</div>`;
+export const exercisesPage = () => `<h1>Все упражнения</h1>${catalogBrowser('page')}`;
 
 export function settingsPage() {
   const p = data().profile;
@@ -58,7 +42,9 @@ export function settingsPage() {
     <section class="card"><h2>Для ИИ-тренера</h2>
       <label class="field wide">Цель тренировок<textarea id="profileGoal" data-profile-field="goal" rows="2" placeholder="Например: сила в базовых упражнениях">${esc(p.goal)}</textarea></label>
       <label class="field wide">Дополнительный контекст<textarea data-profile-field="context" rows="4" placeholder="Опыт, ограничения, травмы, оборудование…">${esc(p.context)}</textarea></label>
-      <p class="note">Сохраняется автоматически. ИИ видит этот текст вместе с данными тренировок.</p></section>
+      <p class="note">Цель и контекст сохраняются автоматически. ИИ получает эти сведения вместе с относящимися к вопросу тренировками через DeepSeek.</p>
+      <h3>Подтверждённые факты</h3>
+      ${p.facts.length ? p.facts.map(f => `<form class="coach-fact" data-fact-form="${esc(f.id)}"><label class="field wide">Факт<textarea name="text" maxlength="1200" rows="2" required>${esc(f.text)}</textarea></label><div class="footer-actions"><button class="btn small">Сохранить</button><button type="button" class="btn small danger" data-action="removeCoachFact" data-id="${esc(f.id)}">Удалить</button></div></form>`).join('') : '<p class="note">Сведения из разговора появятся здесь после вашего подтверждения.</p>'}</section>
     <section class="card"><h2>Данные</h2><p class="note">Тренировки и история хранятся только на этом устройстве. Экспорт сохраняет JSON-копию; импорт заменяет текущие данные содержимым файла.</p>
       <div class="footer-actions"><button class="btn" data-action="export">Экспорт JSON</button><button class="btn" data-action="import">Импорт JSON</button></div>
       <p class="note">Последний экспорт: ${p.lastExportAt ? esc(longDate(p.lastExportAt.slice(0, 10))) : 'ещё не выполнялся'}. Приложение не проверяет, сохранился ли скачанный файл.</p></section>`;
@@ -72,25 +58,10 @@ function download(text, name) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const redrawList = () => { document.getElementById('wlist').innerHTML = groupsHtml(); };
-let searchTimer;
 
 export const actions = {
+  removeCoachFact: ({ id }) => { if (applied(ctx.uc.removeFact(id))) ctx.render(); },
   openCatalog: () => openCatalog(),
-  clearSearch: (_, el) => {
-    const input = document.getElementById('wsearch');
-    clearTimeout(searchTimer);
-    view.query = input.value = '';
-    el.hidden = true;
-    redrawList();
-    input.focus();
-  },
-  deleteGroup: ({ group }) => {
-    const error = groupDeleteError(data(), group);
-    if (error) return alert(error);
-    if (confirm('Удалить группу «' + findGroup(data(), group).name + '»? Упражнения пропадут из базы; завершённая история тренировок сохранится.')) applied(ctx.uc.deleteGroup(group));
-    ctx.render();
-  },
   export: () => {
     const text = ctx.uc.exportBackup();
     if (!text) return alert('Не удалось сохранить дату экспорта. Освободите место и попробуйте снова.');
@@ -101,13 +72,14 @@ export const actions = {
 };
 
 export const listeners = [
+  ['submit', ev => {
+    const id = ev.target.dataset.factForm;
+    if (!id) return;
+    ev.preventDefault();
+    if (applied(ctx.uc.editFact(id, ev.target.elements.text.value))) ctx.render();
+  }],
   ['input', ev => {
-    if (ev.target.dataset.profileField) ctx.uc.setProfileText(ev.target.dataset.profileField, ev.target.value);
-    if (ev.target.id !== 'wsearch') return;
-    const value = ev.target.value;
-    document.querySelector('.search-x').hidden = !value;
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { view.query = value; redrawList(); }, 300);
+    if (ev.target.dataset.profileField) { const result = ctx.uc.setProfileText(ev.target.dataset.profileField, ev.target.value); if (result?.error) alert(result.error); }
   }],
   ['change', async ev => {
     if (ev.target.id !== 'importFile') return;

@@ -1,4 +1,4 @@
-// Drag to reorder exercises of a day: long press on touch, drag handle with a mouse.
+// Hold and drag an exercise on touch or with a mouse; Alt + arrows works from its title.
 import { ctx, applied } from './context.js';
 
 let drag = null;
@@ -12,8 +12,9 @@ function startDrag(row, y) {
   navigator.vibrate?.(10);
 }
 
-function endDrag() {
+function endDrag(ev) {
   if (!drag) return;
+  if (ev?.type === 'pointercancel') { drag = null; ctx.render(); return; }
   const { row, i, j, rects, list: dragList } = drag, day = row.dataset.day;
   const dy = j > i ? rects[j].bottom - rects[i].bottom : j < i ? rects[j].top - rects[i].top : 0;
   // Swallow the click that ends the drag so it does not open the exercise.
@@ -34,10 +35,9 @@ function endDrag() {
 export const listeners = [
   ['pointerdown', ev => {
     const row = ev.target.closest('.ex[data-id]');
-    if (!row || drag || ev.button || ev.target.closest('.wk-actions,.quick-set,.set-chips,.draft-hint,input,textarea')) return;
-    if (ev.pointerType === 'mouse') {
-      if (ev.target.closest('.drag-handle')) { ev.preventDefault(); startDrag(row, ev.clientY); }
-      return;
+    if (!row || drag || ev.button || ev.target.closest('.wk-actions,.wk-more,.quick-set,.set-chips,.draft-hint,input,textarea')) return;
+    if (ev.pointerType === 'mouse' && ev.target.closest('.drag-handle')) {
+      ev.preventDefault(); startDrag(row, ev.clientY); return;
     }
     const x = ev.clientX, y = ev.clientY, events = ['pointermove', 'pointerup', 'pointercancel'];
     const off = () => events.forEach(n => removeEventListener(n, cancel));
@@ -47,12 +47,27 @@ export const listeners = [
   }],
   ['pointermove', ev => {
     if (!drag) return;
-    const { row, list, i, rects } = drag, dy = ev.clientY - drag.y0, center = rects[i].top + rects[i].height / 2 + dy, h = rects[i].height;
+    const { row, list, i, rects } = drag, dy = ev.clientY - drag.y0, center = rects[i].top + rects[i].height / 2 + dy;
+    const gap = i + 1 < rects.length ? rects[i + 1].top - rects[i].bottom : i > 0 ? rects[i].top - rects[i - 1].bottom : 0;
+    const h = rects[i].height + gap;
     let j = i;
     row.style.transform = `translateY(${dy}px) scale(1.02)`;
     rects.forEach((r, k) => { const mid = r.top + r.height / 2; if (k > i && mid < center) j++; if (k < i && mid > center) j--; });
     drag.j = j;
     list.forEach((r, k) => { if (k !== i) r.style.transform = k > i && k <= j ? `translateY(${-h}px)` : k < i && k >= j ? `translateY(${h}px)` : ''; });
+  }],
+  ['keydown', ev => {
+    if (!ev.altKey || !['ArrowUp', 'ArrowDown'].includes(ev.key) || !ev.target.matches('.exercise-link')) return;
+    const row = ev.target.closest('.ex[data-id]');
+    if (!row) return;
+    ev.preventDefault();
+    const order = ctx.store.state.days[row.dataset.day] || [], from = order.findIndex(e => e.id === row.dataset.id);
+    const to = from + (ev.key === 'ArrowUp' ? -1 : 1);
+    if (from < 0 || to < 0 || to >= order.length) return;
+    if (applied(ctx.uc.moveExercise(row.dataset.day, from, to))) {
+      ctx.render();
+      [...document.querySelectorAll('#app .ex[data-id]')].find(e => e.dataset.id === row.dataset.id)?.querySelector('.exercise-link')?.focus({ preventScroll: true });
+    }
   }],
   ['pointerup', endDrag],
   ['pointercancel', endDrag],

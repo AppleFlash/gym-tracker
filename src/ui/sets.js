@@ -12,12 +12,12 @@ export function setChips(workout, slot, variantId) {
   return sets.length ? `<div class="set-chips">${sets.map((s, i) => `<button type="button" class="set-chip" data-action="editSet" ${refAttrs(workout, slot, variantId)} data-set="${esc(s.id)}" aria-label="Подход ${i + 1}: ${nice(s.weight)} кг, ${s.reps} повторений. Изменить"><b>${nice(s.weight)}</b>×${s.reps}</button>`).join('')}</div>` : '';
 }
 
-export function quickRow(workout, slot, variantId) {
+export function quickRow(workout, slot, variantId, completeAction = null) {
   const row = draftRow(data(), workout.id, slot.id, variantId) || { weight: '', reps: '' }, n = setsOf(slot, variantId).length + 1;
-  return `<form class="quick-set" ${refAttrs(workout, slot, variantId)}>
+  return `<form class="quick-set ${completeAction ? 'with-complete' : ''}" ${refAttrs(workout, slot, variantId)}>
     <div class="qs-field"><label for="qs-weight">Вес, кг</label>${helpButton('weightHelp', 'Как вводить вес')}<input id="qs-weight" data-draft-field="weight" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(row.weight)}" placeholder="0" aria-label="Вес подхода ${n}, кг"></div>
     <div class="qs-field"><label for="qs-reps">Повторы</label><input id="qs-reps" data-draft-field="reps" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${esc(row.reps)}" placeholder="8" aria-label="Повторения подхода ${n}"></div>
-    <div class="qs-actions"><button type="submit" class="btn primary small">Сохранить</button><button type="button" class="btn small" data-action="cancelSet">Отмена</button></div>
+    <div class="qs-actions"><button type="submit" class="btn primary small">Сохранить</button>${completeAction ? `<button type="button" class="btn primary small" data-action="${completeAction}" data-id="${esc(slot.id)}" aria-label="Завершить упражнение">Завершить</button>` : ''}<button type="button" class="btn small" data-action="cancelSet">Отмена</button></div>
   </form>`;
 }
 

@@ -9,6 +9,8 @@ export const variantsOf = exercise => [exercise, ...(exercise.alternatives || []
 export const findVariant = (data, day, id) => (data.days[day] || []).flatMap(variantsOf).find(e => e.id === id);
 // The program slot (main exercise) that owns a variant id.
 export const slotOf = (data, day, id) => (data.days[day] || []).find(e => variantsOf(e).some(v => v.id === id));
+export const alternativeGroup = (data, day, slotId) => data.groups.find(g => g.items.some(i => i.id === slotOf(data, day, slotId)?.weightId));
+export const sameMuscleGroup = (data, mainId, itemId) => !!data.groups.find(g => g.items.some(i => i.id === mainId))?.items.some(i => i.id === itemId);
 
 // Whether a catalog item is already used by the day (or by one slot's variants when parentId is given).
 export function isInProgram(data, day, parentId, itemId) {
@@ -18,9 +20,10 @@ export function isInProgram(data, day, parentId, itemId) {
 
 // Adds a catalog item as a new slot of the day, or as an alternative of a slot (never a duplicate).
 export function addFromCatalog(data, day, parentId, item) {
-  if (!item || isInProgram(data, day, parentId, item.id)) return false;
+  if (!item || item.archived || isInProgram(data, day, parentId, item.id)) return false;
   const parent = parentId ? slotOf(data, day, parentId) : null;
   if (parentId && !parent) return false;
+  if (parent && !sameMuscleGroup(data, parent.weightId, item.id)) fail('Выберите альтернативу из той же группы мышц.');
   const entry = { id: uid(), name: item.name, weightId: item.id, sets: parent?.sets || 3, range: parent?.range || '8–12' };
   if (parent) (parent.alternatives ||= []).push(entry);
   else data.days[day].push(entry);

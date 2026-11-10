@@ -1,17 +1,19 @@
 // App shell: tab bar, navigation bar, current screen and the open sheet. render() redraws all of it.
-import { DAYS, findVariant, slotOf } from '../domain/program.js';
-import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant } from '../domain/workout.js';
+import { DAYS, slotOf } from '../domain/program.js';
+import { activeWorkouts, activeWorkoutOf, findSlot } from '../domain/workout.js';
 import { view, data, route } from './context.js';
 import { esc, chevron, plusIcon, moreIcon } from './format.js';
 import { parentRoute, routeTitle, tabOf } from './router.js';
 import { homePage } from './screens/home.js';
-import { workoutPage } from './screens/workout.js';
+import { workoutPage, exerciseMenuHtml } from './screens/workout.js';
 import { exercisePage, itemPage } from './screens/exercise.js';
 import { resultPage } from './screens/result.js';
-import { chatPage, drawChat } from './screens/chat.js';
+import { historyDetailPage } from './screens/history.js';
+import { chatPage, drawChat, agreementsHtml } from './screens/chat.js';
 import { profilePage, progressPage, historyPage, exercisesPage, settingsPage } from './screens/profile.js';
 import { catalogHtml, catalogDepth } from './sheets/catalog.js';
 import { variantsHtml } from './sheets/variants.js';
+import { techniqueHtml, alternativeHtml } from './sheets/catalog-ai.js';
 import { editSheetHtml } from './sheets/edit.js';
 
 const TABS = [
@@ -33,11 +35,7 @@ function navAction(r) {
   if (r.tab === 'exercises') return '<button class="nav-action" data-action="openCatalog" aria-label="Изменить базу упражнений">База</button>';
   if (!DAYS.includes(r.tab)) return '';
   const workout = activeWorkoutOf(data(), r.tab);
-  if (r.id) {
-    // Plan editing applies to the variant shown on this screen, as long as it is still in the program.
-    const slot = findSlot(workout, r.id), variantId = slot ? selectedVariant(slot).id : r.id;
-    return findVariant(data(), r.tab, variantId) ? `<button class="nav-action" data-action="editDayExercise" data-day="${r.tab}" data-id="${esc(variantId)}">План</button>` : '';
-  }
+  if (r.id) return '';
   const add = `<button class="nav-action" data-action="addDayExercise" data-day="${r.tab}" aria-label="Добавить упражнение">${plusIcon}</button>`;
   return workout ? `<button class="nav-action" data-action="workoutMenu" data-id="${esc(workout.id)}" aria-label="Действия с занятием">${moreIcon}</button>${add}` : add;
 }
@@ -48,7 +46,7 @@ function navBarHtml(r) {
   return `<div class="navbar"><div class="navbar-bar"><div class="nav-side">${back}</div><div class="nav-title">${r.tab === 'chat' ? 'Чат' : ''}</div><div class="nav-side end">${navAction(r)}</div></div></div>`;
 }
 
-const PAGES = { workouts: homePage, chat: chatPage, profile: profilePage, progress: progressPage, history: historyPage, exercises: exercisesPage, settings: settingsPage };
+const PAGES = { workouts: homePage, chat: chatPage, profile: profilePage, progress: progressPage, history: historyPage, 'history-detail': historyDetailPage, exercises: exercisesPage, settings: settingsPage };
 
 function pageHtml({ tab, id }) {
   if (DAYS.includes(tab)) {
@@ -63,7 +61,7 @@ function pageHtml({ tab, id }) {
 // Full screen markup for any route; also used for the swipe-back preview of the parent screen.
 export const screenHtml = r => navBarHtml(r) + `<div class="screen-body">${pageHtml(r)}</div>`;
 
-const SHEETS = { catalog: catalogHtml, variants: variantsHtml };
+const SHEETS = { agreements: agreementsHtml, catalog: catalogHtml, variants: variantsHtml, technique: techniqueHtml, 'alternative-ai': alternativeHtml, 'exercise-menu': exerciseMenuHtml };
 const sheetHtml = () => !view.modal ? '' : (SHEETS[view.modal.type] || editSheetHtml)();
 
 export function render() {

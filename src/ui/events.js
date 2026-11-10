@@ -8,13 +8,16 @@ import * as exercise from './screens/exercise.js';
 import * as result from './screens/result.js';
 import * as chat from './screens/chat.js';
 import * as profile from './screens/profile.js';
+import * as history from './screens/history.js';
 import * as sets from './sets.js';
 import * as catalog from './sheets/catalog.js';
+import * as catalogList from './catalog-list.js';
+import * as catalogAi from './sheets/catalog-ai.js';
 import * as variants from './sheets/variants.js';
 import * as edit from './sheets/edit.js';
 import * as reorder from './reorder.js';
 
-const features = [home, workout, exercise, result, chat, profile, sets, catalog, variants, edit, reorder];
+const features = [home, workout, exercise, result, chat, profile, history, sets, catalog, catalogList, catalogAi, variants, edit, reorder];
 
 const shellActions = {
   tab: ({ id }) => go(id === 'day' ? 'workouts' : id),

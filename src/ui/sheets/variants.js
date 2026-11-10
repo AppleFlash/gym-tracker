@@ -1,7 +1,7 @@
 // "Replace exercise" sheet: the main exercise and saved alternatives with their last result.
 // During a workout one tap picks a variant for this workout only; without one it manages the template's alternatives.
 // State: view.modal = {type: 'variants', day, slotId}.
-import { slotOf, variantsOf } from '../../domain/program.js';
+import { slotOf, variantsOf, sameMuscleGroup } from '../../domain/program.js';
 import { activeWorkoutOf, findSlot, lastPerformance, setsOf } from '../../domain/workout.js';
 import { ctx, view, data, applied, rerender } from '../context.js';
 import { esc, shortDate, setsText, plural, SETS, trashIcon } from '../format.js';
@@ -16,17 +16,18 @@ export function variantsHtml() {
   const m = view.modal, workout = activeWorkoutOf(data(), m.day), slot = findSlot(workout, m.slotId), template = slotOf(data(), m.day, m.slotId);
   const variants = slot ? slot.variants : template ? variantsOf(template) : [], main = variants[0];
   const rows = variants.map((v, i) => {
+    const allowed = !i || sameMuscleGroup(data(), main.weightId, v.weightId);
     const today = slot ? setsOf(slot, v.id).length : 0, chosen = slot?.selectedId === v.id;
     const meta = `${i ? 'Альтернатива' : 'Основное'} · ${lastResult(v.weightId, workout?.id)}${today ? ` · сегодня ${plural(today, SETS)}` : ''}`;
     const body = `<span class="variant-body"><strong>${esc(v.name)}</strong><small>${meta}</small></span>`;
-    if (slot) return `<button class="variant-row" data-action="pickVariant" data-id="${esc(v.id)}" aria-pressed="${chosen}">${body}<span class="variant-check" aria-hidden="true">${chosen ? '✓' : ''}</span></button>`;
-    return `<div class="variant-row">${body}${i && template?.alternatives?.some(a => a.id === v.id) ? `<button class="icon-btn" data-action="removeAlternative" data-id="${esc(v.id)}" aria-label="Удалить альтернативу «${esc(v.name)}» из программы">${trashIcon}</button>` : ''}</div>`;
+    if (slot && allowed) return `<button class="variant-row" data-action="pickVariant" data-id="${esc(v.id)}" aria-pressed="${chosen}">${body}<span class="variant-check" aria-hidden="true">${chosen ? '✓' : ''}</span></button>`;
+    return `<div class="variant-row">${body}${!allowed ? '<small class="note">Другая группа мышц — выбор недоступен</small>' : ''}${i && template?.alternatives?.some(a => a.id === v.id) ? `<button class="icon-btn" data-action="removeAlternative" data-id="${esc(v.id)}" aria-label="Удалить альтернативу «${esc(v.name)}» из программы">${trashIcon}</button>` : ''}</div>`;
   }).join('');
-  return `<dialog class="modal" aria-labelledby="variantsTitle"><section class="card"><div class="sheet-nav"><div class="nav-side"></div><h2 class="sheet-title" id="variantsTitle">${slot ? 'Замена упражнения' : 'Альтернативы'}</h2><div class="nav-side end"><button type="button" class="nav-action" data-action="close">Закрыть</button></div></div>
+  return `<dialog class="modal" aria-labelledby="variantsTitle"><section class="card"><div class="sheet-nav"><div class="nav-side"></div><h2 class="sheet-title" id="variantsTitle">Альтернативы упражнения</h2><div class="nav-side end"><button type="button" class="nav-action" data-action="close">Закрыть</button></div></div>
     <p class="lede">${esc(main?.name || '')}</p>
     <div class="card list variant-list">${rows}</div>
-    ${template ? '<button class="btn block" data-action="addAlternativeFromSheet">+ Добавить альтернативу</button>' : ''}
-    <p class="note">${slot ? 'Выбор действует только в этой тренировке. Подходы каждого варианта сохраняются отдельно.' : 'Альтернативы сохраняются в программе. Каждая тренировка начинается с основного упражнения.'}</p>
+    ${template ? `<div class="footer-actions stacked"><button class="btn block" data-action="addAlternativeFromSheet">+ Добавить альтернативу</button><button class="btn block" data-action="suggestAlternatives" data-day="${m.day}" data-id="${esc(m.slotId)}">Подобрать с ИИ</button></div>` : ''}
+    <p class="note">${slot ? 'Добавленная альтернатива останется в программе. Выбор варианта действует только в этом занятии; прежние подходы сохраняются.' : 'Альтернативы сохраняются в программе. Каждая тренировка начинается с основного упражнения.'}</p>
   </section></dialog>`;
 }
 

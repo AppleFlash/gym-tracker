@@ -1,8 +1,5 @@
-// Proxy to Gemini API. Runs in Frankfurt: Cloudflare is throttled in Russia, Gemini blocks Russian IPs.
-// Key lives in the GEMINI_KEY env var, never in the app.
+// DeepSeek key stays on the server.
 const ORIGINS = ['https://appleflash.github.io', 'http://localhost:8000'];
-// Simple, fast models with separate free quotas; the next one is tried when the previous fails
-const MODELS = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest'];
 
 const cors = origin => ({
   'Access-Control-Allow-Origin': origin,
@@ -21,21 +18,24 @@ export function OPTIONS(req) {
 export async function POST(req) {
   const origin = req.headers.get('origin');
   if (!ORIGINS.includes(origin)) return error(origin || '*', 403, `Прокси: адрес ${origin || '(нет Origin)'} не в списке разрешённых`);
-  const body = await req.text();
+  let body;
+  try { body = await req.json(); } catch { return error(origin, 400, 'Некорректный JSON'); }
+  if (!Array.isArray(body?.messages) || !body.messages.length || body.messages.some(m => !m || !['system', 'user', 'assistant'].includes(m.role) || typeof m.content !== 'string')) return error(origin, 400, 'Некорректные сообщения');
+  if (!process.env.DEEPSEEK_KEY) return error(origin, 503, 'Прокси: DEEPSEEK_KEY не настроен');
   let res;
-  for (const model of MODELS) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      res = await fetch('https://api.deepseek.com/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_KEY },
-        body,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.DEEPSEEK_KEY },
+        body: JSON.stringify({ model: 'deepseek-flash', messages: body.messages, thinking: { type: 'disabled' }, max_tokens: 4096, ...(body.response_format?.type === 'json_object' ? { response_format: { type: 'json_object' } } : {}) }),
         signal: AbortSignal.timeout(25000),
       });
     } catch {
-      res = error(origin, 504, `Прокси: ${MODELS.join(' и ')} не ответили за 25 с`);
-      continue;
+      return error(origin, 504, 'Прокси: DeepSeek не ответил за 25 с');
     }
-    if (![429, 500, 503].includes(res.status)) break;
+    if (!attempt && [429, 500, 503].includes(res.status)) { await res.body?.cancel(); continue; }
+    break;
   }
   return new Response(res.body, { status: res.status, headers: { ...cors(origin), 'Content-Type': 'application/json' } });
 }

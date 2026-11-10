@@ -1,106 +1,82 @@
-// Exercise catalog sheet: search or muscle groups → exercises. Picks an exercise for a day or as an alternative,
-// creates groups and exercises, renames exercises. State: view.modal = {type: 'catalog', day, parentId, group, editing, notice, query}.
-import { findGroup, findItem } from '../../domain/catalog.js';
-import { isInProgram } from '../../domain/program.js';
-import { ctx, view, data, applied } from '../context.js';
-import { esc, chevron } from '../format.js';
-
-const isCatalog = () => view.modal?.type === 'catalog';
+// Catalog sheet: context selection, exercise properties and user groups.
+import { findItem, itemGroup, catalogItems, searchKey } from '../../domain/catalog.js';
+import { slotOf, alternativeGroup } from '../../domain/program.js';
+import { ctx, view, data, applied, rerender } from '../context.js';
+import { esc, chevron, dayLetter } from '../format.js';
+import { catalogBrowser, emptyFilters, catalogState, groupOptions, equipmentOptions } from '../catalog-list.js';
 
 export function openCatalog(day = null, parentId = null) {
-  view.modal = { type: 'catalog', day, parentId, group: null, editing: null, notice: '', query: '' };
+  const slot = parentId && slotOf(data(), day, parentId);
+  view.modal = { type: 'catalog', day, parentId, filters: { ...emptyFilters(), group: slot ? itemGroup(data(), slot.weightId)?.id || '' : '' }, editing: null, form: null, dirty: false };
   ctx.render();
 }
-
-// Push depth inside the sheet: groups → exercises → edit form.
-export const catalogDepth = m => m.editing ? 2 : m.group ? 1 : 0;
-
-const alreadyAdded = (m, item) => !!m.day && isInProgram(data(), m.day, m.parentId, item.id);
-
-function editForm(m, group) {
-  const item = group?.items.find(i => i.id === m.editing.id);
-  const title = m.editing.kind === 'group' ? 'Новая группа мышц' : item ? 'Изменить название' : 'Новое упражнение';
-  return `<form id="catalogForm"><h2>${title}</h2><label class="field" style="margin-top:18px">Название<input name="name" value="${esc(item?.name || '')}" required autocomplete="off"></label><div class="form-actions"><button class="btn primary" type="submit">Сохранить в базу</button><button class="btn" type="button" data-action="catalogCancelEdit">Отмена</button></div></form>`;
+export const catalogDepth = m => m.editing ? 1 : 0;
+export async function discardForm(m = view.modal) {
+  return !m?.dirty || await ds.confirm('Отменить изменения?', 'Несохранённый ввод будет потерян.', { ok: 'Не сохранять', destructive: true });
 }
-
-function itemRow(m, item, groupName = '') {
-  const added = alreadyAdded(m, item), id = esc(item.id);
-  // Renaming needs the group; search results carry it in data-group.
-  const group = groupName ? ` data-group="${esc(data().groups.find(g => g.items.includes(item))?.id)}"` : '';
-  return `<div class="catalog-exercise-row"><button class="catalog-row" data-action="${m.day ? 'catalogPick' : 'catalogEditExercise'}" data-id="${id}"${group} ${added ? 'disabled' : ''}><span>${esc(item.name)}${groupName ? `<small>${esc(groupName)}</small>` : ''}${added ? '<small>Уже добавлено</small>' : ''}</span><span class="row-chevron" aria-hidden="true">${m.day ? '+' : '›'}</span></button>${m.day ? `<button class="btn small" data-action="catalogEditExercise" data-id="${id}"${group} aria-label="Изменить название: ${esc(item.name)}">Изм.</button>` : ''}</div>`;
+function similarHtml(m) {
+  const q = searchKey(m.form.name || '');
+  const locked = m.parentId ? alternativeGroup(data(), m.day, m.parentId)?.id : null;
+  const matches = q ? catalogItems(data()).filter(i => (!locked || itemGroup(data(), i.id)?.id === locked) && i.id !== m.editing.id && (searchKey(i.name).includes(q) || i.aliases.some(a => searchKey(a).includes(q)))) : [];
+  return matches.length ? '<p class="note">Похожие упражнения уже есть:</p>' + matches.slice(0, 8).map(i => `<button type="button" class="btn small" data-action="catalogUseSimilar" data-id="${esc(i.id)}">${esc(i.name)}${i.archived ? ' · в архиве' : ''}</button>`).join('') : '';
 }
-
-function exerciseList(m, group, context) {
-  const rows = group.items.map(item => itemRow(m, item)).join('');
-  return `<p class="lede">${context}</p><div class="topline"><h2>Упражнения</h2><button class="btn small primary" data-action="catalogNewExercise">+ Упражнение</button></div>${m.notice ? `<p class="note" role="status">${esc(m.notice)}</p>` : ''}<section class="card catalog-list" aria-label="Упражнения группы">${rows || '<p class="note catalog-empty">В этой группе пока нет упражнений. Добавьте первое в базу.</p>'}</section>`;
+function editForm(m) {
+  const f = m.form, group = m.editing.kind === 'group';
+  return `<form id="catalogForm"><h2>${group ? 'Новая группа мышц' : m.editing.id ? 'Свойства упражнения' : 'Новое упражнение'}</h2>
+    <label class="field">Название<input name="name" value="${esc(f.name)}" maxlength="200" required autocomplete="off"></label>
+    ${group ? '' : `<div class="form-grid"><label class="field">Группа мышц<select name="groupId" required>${groupOptions(f.groupId, m.parentId && !m.editing.id ? alternativeGroup(data(), m.day, m.parentId)?.id : null)}</select></label><label class="field">Оборудование<select name="equipment">${equipmentOptions(f.equipment)}</select></label></div>
+    <label class="field">Другие названия, по одному в строке<textarea name="aliases" rows="2" maxlength="4020">${esc(f.aliases)}</textarea></label>
+    <label class="field">Моя заметка<textarea name="note" rows="3" maxlength="4000" placeholder="Наклон скамьи, положение сиденья, хват…">${esc(f.note)}</textarea></label><div class="catalog-similar">${similarHtml(m)}</div>`}
+    <div class="form-actions"><button class="btn primary" type="submit">${!group && !m.editing.id && m.day ? 'Создать и добавить' : 'Сохранить'}</button><button class="btn" type="button" data-action="catalogCancelEdit">Отмена</button></div></form>`;
 }
-
-// Search by name across all groups; with an empty query the groups are listed.
-function searchResults(m) {
-  const q = (m.query || '').trim().toLowerCase();
-  if (!q) return '';
-  const found = data().groups.flatMap(g => g.items.filter(i => i.name.toLowerCase().includes(q)).map(i => itemRow(m, i, g.name))).join('');
-  return `<section class="card catalog-list" aria-label="Найденные упражнения">${found || '<p class="note catalog-empty">Ничего не найдено. Создайте упражнение в нужной группе.</p>'}</section>`;
-}
-
-const groupList = (m, context) => `<p class="lede">${context}</p><div class="search"><input type="search" id="catalogSearch" placeholder="Поиск по названию" value="${esc(m.query || '')}" autocomplete="off" aria-label="Поиск упражнения"></div><div class="catalog-results">${searchResults(m)}</div><div class="catalog-groups" ${m.query?.trim() ? 'hidden' : ''}><section class="card catalog-list" aria-label="Группы мышц">${data().groups.map(g => `<button class="catalog-row" data-action="catalogGroup" data-id="${esc(g.id)}"><span><strong>${esc(g.name)}</strong><small>${g.items.length} упражнений</small></span><span class="row-chevron" aria-hidden="true">›</span></button>`).join('')}</section><button class="btn" data-action="catalogNewGroup">+ Группа мышц</button></div>`;
-
 export function catalogHtml() {
-  const m = view.modal, group = findGroup(data(), m.group);
-  const context = m.day ? (m.parentId ? 'Выбор аналогичного упражнения' : 'Добавление в тренировку') : 'Группы мышц и упражнения';
-  const content = m.editing ? editForm(m, group) : group ? exerciseList(m, group, context) : groupList(m, context);
-  const back = group || m.editing ? `<button class="nav-back" data-action="catalogBack" aria-label="${m.editing ? 'Назад' : 'К группам мышц'}">${chevron}<span>${m.editing ? 'Назад' : 'Группы'}</span></button>` : '';
-  return `<dialog class="modal catalog-modal" aria-labelledby="catalogTitle"><section class="card catalog-shell"><div class="sheet-nav catalog-header"><div class="nav-side">${back}</div><h2 class="sheet-title" id="catalogTitle">${esc(group ? group.name : 'База упражнений')}</h2><div class="nav-side end"><button class="nav-action" data-action="close" aria-label="Закрыть базу упражнений">Закрыть</button></div></div><div class="catalog-content">${content}</div></section></dialog>`;
+  const m = view.modal, context = m.day ? m.parentId ? 'Альтернатива для ' + (slotOf(data(), m.day, m.parentId)?.name || 'упражнения') : 'Добавить в тренировку ' + dayLetter(m.day) : 'Упражнения и свойства';
+  return `<dialog class="modal catalog-modal" aria-labelledby="catalogTitle"><section class="card catalog-shell"><div class="sheet-nav catalog-header"><div class="nav-side">${m.editing ? `<button class="nav-back" data-action="catalogCancelEdit" aria-label="Назад">${chevron}</button>` : ''}</div><h2 class="sheet-title" id="catalogTitle">База упражнений</h2><div class="nav-side end"><button class="nav-action" data-action="close">Закрыть</button></div></div><div class="catalog-content"><p class="lede">${esc(context)}</p>${m.editing ? editForm(m) : catalogBrowser('sheet')}</div></section></dialog>`;
 }
-
-function pick(itemId) {
-  const m = view.modal;
-  if (!m.day || m.editing) return;
-  const result = ctx.uc.addFromCatalog(m.day, m.parentId, itemId);
-  if (!applied(result)) return;
-  view.modal = null;
-  ctx.render();
-  document.querySelector(`.ex[data-id="${CSS.escape(result.value.slot.id)}"]`)?.scrollIntoView({ block: 'nearest' });
+function beginEdit(id = null, scope = 'sheet', groupId = null) {
+  if (scope === 'page' || view.modal?.type !== 'catalog') view.modal = { type: 'catalog', day: null, parentId: null, filters: { ...catalogState('page') }, editing: null };
+  const m = view.modal, item = id ? findItem(data(), id) : null;
+  m.listScroll = document.querySelector('.catalog-content')?.scrollTop || 0;
+  m.editing = { kind: 'exercise', id };
+  m.form = { name: item?.name || m.filters.query.trim(), groupId: item ? itemGroup(data(), id)?.id : groupId || m.filters.group || data().groups[0]?.id || '', equipment: item?.equipment || '', aliases: item?.aliases.join('\n') || '', note: item?.note || '' };
+  m.dirty = false; ctx.render();
 }
-
-function save(form) {
-  const m = view.modal, edit = m.editing, name = new FormData(form).get('name');
-  const result = edit.kind === 'group' ? ctx.uc.addGroup(name) : ctx.uc.saveCatalogItem(m.group, edit.id, name);
-  if (!applied(result)) return;
-  const savedId = result.value;
-  if (edit.kind === 'group') m.group = savedId;
-  m.editing = null;
-  m.notice = edit.id ? 'Название обновлено' : edit.kind === 'group' ? 'Группа создана'
-    : m.day ? 'Добавлено в базу. Выберите упражнение, чтобы добавить его в тренировку.' : 'Упражнение добавлено в базу';
-  ctx.render();
-  document.querySelector(`.catalog-row[data-id="${CSS.escape(savedId)}"]`)?.scrollIntoView({ block: 'nearest' });
+function pick(id) {
+  const m = view.modal, item = findItem(data(), id);
+  if (!item || item.archived || !m?.day) return;
+  if (applied(ctx.uc.addFromCatalog(m.day, m.parentId, id))) { view.modal = null; rerender(); }
 }
-
-// Catalog actions only act while the catalog sheet is open.
-const inCatalog = change => (dataset, el) => { if (isCatalog()) { change(view.modal, dataset, el); } };
-const andRender = change => inCatalog((m, dataset) => { change(m, dataset); ctx.render(); });
-
 export const actions = {
-  catalogGroup: andRender((m, { id }) => { m.group = id; m.notice = ''; }),
-  catalogBack: andRender(m => { if (m.editing) m.editing = null; else m.group = null; m.notice = ''; }),
-  catalogNewGroup: andRender(m => { m.editing = { kind: 'group' }; }),
-  catalogNewExercise: andRender(m => { m.editing = { kind: 'exercise' }; }),
-  catalogEditExercise: andRender((m, { id, group }) => { if (group) m.group = group; m.editing = { kind: 'exercise', id }; }),
-  catalogCancelEdit: andRender(m => { m.editing = null; }),
-  catalogPick: inCatalog((m, { id }) => { if (findItem(data(), id)) pick(id); }),
+  catalogNewExercise: ({ scope }) => beginEdit(null, scope || 'sheet'),
+  catalogEditExercise: ({ id, group }) => beginEdit(id, 'sheet', group),
+  catalogPick: ({ id }) => pick(id),
+  catalogUseSimilar: async ({ id }) => {
+    const m = view.modal; if (!await discardForm(m)) return;
+    if (findItem(data(), id)?.archived) return alert('Сначала восстановите упражнение из архива.');
+    if (m.day) pick(id); else beginEdit(id);
+  },
+  catalogNewGroup: () => {
+    if (view.modal?.type !== 'catalog') openCatalog();
+    Object.assign(view.modal, { editing: { kind: 'group' }, form: { name: '' }, dirty: false }); ctx.render();
+  },
+  catalogCancelEdit: async () => { const m = view.modal; if (await discardForm(m)) { Object.assign(m, { editing: null, form: null, dirty: false }); ctx.render(); document.querySelector('.catalog-content')?.scrollTo(0, m.listScroll || 0); } },
 };
-
 export const listeners = [
   ['input', ev => {
-    if (ev.target.id !== 'catalogSearch' || !isCatalog()) return;
-    view.modal.query = ev.target.value;
-    const sheet = ev.target.closest('.catalog-content');
-    sheet.querySelector('.catalog-results').innerHTML = searchResults(view.modal);
-    sheet.querySelector('.catalog-groups').hidden = !!view.modal.query.trim();
+    if (!ev.target.closest('#catalogForm') || view.modal?.type !== 'catalog') return;
+    const m = view.modal; m.form[ev.target.name] = ev.target.value; m.dirty = true;
+    if (ev.target.name === 'name' && m.editing.kind === 'exercise') ev.target.closest('form').querySelector('.catalog-similar').innerHTML = similarHtml(m);
   }],
+  ['change', ev => { if (ev.target.closest('#catalogForm') && view.modal?.type === 'catalog') { view.modal.form[ev.target.name] = ev.target.value; view.modal.dirty = true; } }],
   ['submit', ev => {
     if (ev.target.id !== 'catalogForm') return;
     ev.preventDefault();
-    if (isCatalog() && view.modal.editing) save(ev.target);
+    const m = view.modal, input = Object.fromEntries(new FormData(ev.target));
+    m.form = input;
+    const result = m.editing.kind === 'group' ? ctx.uc.addGroup(input.name) : ctx.uc.saveCatalogProperties(m.editing.id, { ...input, aliases: [...new Map(input.aliases.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => [searchKey(s), s])).values()] }, m);
+    if (!applied(result)) return;
+    if (m.editing.kind === 'group') m.filters.group = result.value;
+    else if (!m.editing.id && m.day) { view.modal = null; return rerender(); }
+    Object.assign(m, { editing: null, form: null, dirty: false }); rerender(); document.querySelector('.catalog-content')?.scrollTo(0, m.listScroll || 0);
   }],
 ];

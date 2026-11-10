@@ -213,25 +213,47 @@ const lineAndArea=(P,base,gid)=>{const line=smooth(P);return line?`${gid?`<path 
 // Values mapped into [top, bottom] with headroom; equal values sit in the middle.
 const yScale=(vals,top,bottom)=>{const lo=Math.min(...vals),hi=Math.max(...vals);return v=>hi===lo?(top+bottom)/2:bottom-(v-lo)/(hi-lo)*(bottom-top);};
 // Weight labels sit above their points, reps labels below, so neither collides with the panel title.
-function panel(cls,title,P,values,fmt,top,bottom,gid,below){
+function panel(cls,title,P,values,fmt,top,bottom,gid,below,visible){
   let s=`<text class="ic-title" x="0" y="${top-30}">${e(title)}</text>`;
   s+=lineAndArea(P,bottom,gid);
-  s+=P.map(([x,y],i)=>`<circle class="ic-dot ${cls}" style="--i:${i}" cx="${r1(x)}" cy="${r1(y)}" r="${i===P.length-1?5:3.5}"/><text class="ic-value ${i===P.length-1?'last':''}" x="${r1(x)}" y="${r1(below?y+18:y-10)}" text-anchor="middle">${e(fmt(values[i]))}</text>`).join('');
+  s+=P.map(([x,y],i)=>visible&&!visible.includes(i)?'':`<circle class="ic-dot ${cls}" style="--i:${visible?visible.indexOf(i):i}" cx="${r1(x)}" cy="${r1(y)}" r="${i===P.length-1?5:3.5}"/><text class="ic-value ${i===P.length-1?'last':''}" x="${r1(x)}" y="${r1(below?y+18:y-10)}" text-anchor="${visible&&P.length>1?(i===0?'start':i===P.length-1?'end':'middle'):'middle'}">${e(fmt(values[i]))}</text>`).join('');
   return `<g class="ic-panel ${cls}">${s}</g>`;
 }
-// points: [{label, weight, reps}], oldest first.
-api.trendChart=(points,label)=>{
+// points: [{label, weight, reps, date?}], oldest first; volume uses weight as total kg.
+api.trendChart=(points,label,{volume=false}={})=>{
   const n=points.length;if(!n)return'';
   const x=i=>n>1?PAD_X+i*(W-2*PAD_X)/(n-1):W/2;
-  const WT=44,WB=132,RT=186,RB=222,H=262,gid=n>1?'ic-g'+(++gradients):null;
-  const wy=yScale(points.map(p=>p.weight),WT,WB),ry=yScale(points.map(p=>p.reps),RT,RB);
-  const PW=points.map((p,i)=>[x(i),wy(p.weight)]),PR=points.map((p,i)=>[x(i),ry(p.reps)]);
+  const WT=44,WB=132,RT=186,RB=222,H=volume?172:262,gid=n>1?'ic-g'+(++gradients):null;
+  const weights=points.map(p=>p.weight),wy=yScale(weights,WT,WB);
+  const PW=points.map((p,i)=>[x(i),wy(p.weight)]);
+  const all=points.map((_,i)=>i),edges=n>1?[0,n-1]:[0];
+  // shortcut: estimate widths for the fixed SVG fonts; measure text if typography changes.
+  const fits=(indices,text,charWidth)=>{
+    let right=-Infinity;
+    return indices.every(i=>{
+      const width=text(i).length*charWidth,left=x(i)-(n>1&&i===0?0:n>1&&i===n-1?width:width/2);
+      const clear=left>=right+8;right=left+width;return clear;
+    });
+  };
+  let values=volume&&n>6?edges:all,dates=volume&&n>6?[0,Math.floor((n-1)/2),n-1]:all;
+  if(volume&&!fits(values,i=>num(weights[i]),8))values=edges;
+  if(volume&&!fits(dates,i=>points[i].label,6.5))dates=n>2?[0,Math.floor((n-1)/2),n-1]:edges;
+  if(volume&&!fits(dates,i=>points[i].label,6.5))dates=edges;
   let s=gid?gradient(gid):'';
-  s+=points.map((p,i)=>`<line class="ic-guide" x1="${r1(x(i))}" x2="${r1(x(i))}" y1="${WT-6}" y2="${RB+6}"/>`).join('');
-  s+=panel('w','Вес, кг',PW,points.map(p=>p.weight),num,WT,WB,gid);
-  s+=panel('r','Повторения',PR,points.map(p=>p.reps),v=>'×'+v,RT,RB,null,true);
-  s+=points.map((p,i)=>`<text class="ic-axis" x="${r1(x(i))}" y="${H-4}" text-anchor="middle">${e(p.label)}</text>`).join('');
-  const summary=points.map(p=>`${p.label}: ${num(p.weight)} кг × ${p.reps}`).join('; ');
+  s+=values.map(i=>`<line class="ic-guide" x1="${r1(x(i))}" x2="${r1(x(i))}" y1="${WT-6}" y2="${(volume?WB:RB)+6}"/>`).join('');
+  s+=panel('w',volume?'Объём, кг':'Вес, кг',PW,weights,num,WT,WB,gid,false,volume?values:null);
+  if(!volume){
+    const reps=points.map(p=>p.reps),ry=yScale(reps,RT,RB),PR=points.map((p,i)=>[x(i),ry(p.reps)]);
+    s+=panel('r','Повторения',PR,reps,v=>'×'+v,RT,RB,null,true);
+  }
+  s+=dates.map(i=>`<text class="ic-axis" x="${r1(x(i))}" y="${H-4}" text-anchor="${volume&&n>1?(i===0?'start':i===n-1?'end':'middle'):'middle'}">${e(points[i].label)}</text>`).join('');
+  let run=0;
+  const summary=points.map((p,i)=>{
+    if(!volume)return`${p.label}: ${num(p.weight)} кг × ${p.reps}`;
+    run=p.date&&p.date===points[i-1]?.date?run+1:1;
+    const sameDay=p.date&&(p.date===points[i-1]?.date||p.date===points[i+1]?.date);
+    return`${p.date||p.label}${sameDay?', занятие '+run:''}: ${num(p.weight)} кг`;
+  }).join('; ');
   return`<div class="trend-chart ${api.fresh?'fresh':''}"><svg viewBox="0 -4 ${W} ${H+4}" role="img" aria-label="${e(label)}. ${e(summary)}">${s}</svg></div>`;
 };
 // Compact trend line for list rows: same curve and fill, no axes, last value marked.

@@ -2,7 +2,7 @@
 // for this run and the sets actually saved, so later template edits never rewrite history.
 // Drafts (unsaved input rows) live apart from saved sets in data.drafts[workoutId]['slotId:variantId'].
 import { uid, localDate, fail } from './shared.js';
-import { DAYS, variantsOf } from './program.js';
+import { DAYS, variantsOf, sameMuscleGroup } from './program.js';
 
 export const ROTATION = ['A', 'B', 'C'];
 
@@ -131,6 +131,7 @@ export function workoutProgress(data, workout) {
 export function selectVariant(data, workoutId, slotId, variantId) {
   const ref = slotRef(data, workoutId, slotId, variantId, { active: true });
   if (!ref || ref.slot.selectedId === variantId) return false;
+  if (variantId !== ref.slot.id && !sameMuscleGroup(data, mainVariant(ref.slot).weightId, ref.slot.variants.find(v => v.id === variantId).weightId)) fail('Выберите альтернативу из той же группы мышц.');
   ref.slot.selectedId = variantId;
 }
 

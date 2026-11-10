@@ -1,7 +1,7 @@
 // Exercise screen. In a workout: last time, today's sets with entry, finish; then chart and history.
 // From the profile ('item' route): the same history of a catalog exercise without the workout part.
 import { slotOf } from '../../domain/program.js';
-import { findItem } from '../../domain/catalog.js';
+import { findItem, itemGroup, itemUsage, EQUIPMENT } from '../../domain/catalog.js';
 import { activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, performancesOf, lastPerformance, representativeSet } from '../../domain/workout.js';
 import { ctx, view, data, applied } from '../context.js';
 import { esc, nice, hasReps, dayTitle, shortDate, longDate, setsText, plural, SETS, STATUS_TEXT } from '../format.js';
@@ -42,24 +42,29 @@ export function exercisePage(day, slotId) {
   let today = '';
   if (slot) {
     const status = slotStatus(data(), workout, slot), others = slot.variants.filter(v => v.id !== variant.id && setsOf(slot, v.id).length);
-    today = `<section class="card"><div class="row"><h2>Сегодня</h2><span class="status-pill s-${status}">${STATUS_TEXT[status]}</span></div>
+    today = `<section class="card">${findItem(data(), weightId)?.note ? `<p class="personal-note">${esc(findItem(data(), weightId).note)}</p>` : ''}<div class="row"><h2>Сегодня</h2><span class="status-pill s-${status}">${STATUS_TEXT[status]}</span></div>
       ${setChips(workout, slot, variant.id) || '<p class="note">Подходов пока нет.</p>'}
       ${others.map(v => `<p class="note">Также: ${esc(v.name)} — ${setsText(setsOf(slot, v.id))}</p>`).join('')}
-      ${isOpen(workout, slot, variant.id) ? quickRow(workout, slot, variant.id) : `<button class="btn small primary" data-action="addSet" data-workout="${esc(workout.id)}" data-slot="${esc(slot.id)}" data-variant="${esc(variant.id)}">+ Подход</button>`}
-      <button class="btn primary block" data-action="completeAndBack" data-id="${esc(slot.id)}">Завершить упражнение</button></section>`;
+      ${isOpen(workout, slot, variant.id) ? quickRow(workout, slot, variant.id, 'completeAndBack') : `<div class="exercise-actions"><button class="btn small primary" data-action="addSet" data-workout="${esc(workout.id)}" data-slot="${esc(slot.id)}" data-variant="${esc(variant.id)}">+ Подход</button><button class="btn small primary" data-action="completeAndBack" data-id="${esc(slot.id)}">Завершить упражнение</button></div>`}</section>`;
   }
   return `<h1 class="wrap">${esc(variant.name)}</h1><p class="lede">${dayTitle(day)}${variant.id !== main.id ? ' · вместо: ' + esc(main.name) : ''} · ${variant.sets ?? main.sets} × ${esc(variant.range ?? main.range)}</p>
-    ${lastTimeCard(weightId, workout?.id)}${today}${chartCard(weightId)}${historyBlock(weightId)}${legacyRecords(weightId)}${discussButton(weightId)}`;
+    ${weightId ? `<div class="exercise-tools"><button class="btn small" data-action="openTechnique" data-id="${esc(weightId)}">Техника</button></div>` : ''}${lastTimeCard(weightId, workout?.id)}${today}${chartCard(weightId)}${historyBlock(weightId)}${legacyRecords(weightId)}${discussButton(weightId)}`;
 }
 
 export function itemPage(itemId) {
   const item = findItem(data(), itemId);
   if (!item) return '<div class="empty">Упражнение не найдено.</div>';
   const group = data().groups.find(g => g.items.includes(item));
-  return `<h1 class="wrap">${esc(item.name)}</h1><p class="lede">${esc(group?.name || '')}</p>${lastTimeCard(item.id)}${chartCard(item.id)}${historyBlock(item.id)}${legacyRecords(item.id)}${discussButton(item.id)}`;
+  return `<h1 class="wrap">${esc(item.name)}</h1><p class="lede">${esc(group?.name || '')} · ${EQUIPMENT[item.equipment] || 'Оборудование не указано'}${item.archived ? ' · В архиве' : ''}</p><div class="footer-actions exercise-tools"><button class="btn small" data-action="catalogFavorite" data-id="${esc(item.id)}" aria-pressed="${item.favorite}">${item.favorite ? 'В избранном' : 'В избранное'}</button><button class="btn small" data-action="catalogEditExercise" data-id="${esc(item.id)}">Свойства</button><button class="btn small" data-action="openTechnique" data-id="${esc(item.id)}">Техника</button><button class="btn small" data-action="archiveCatalogItem" data-id="${esc(item.id)}">${item.archived ? 'Восстановить' : 'В архив'}</button></div><section class="card"><h2>Моя заметка</h2><p class="personal-note">${item.note ? esc(item.note) : 'Добавьте личные настройки в свойствах упражнения.'}</p></section>${itemUsage(data(), item.id).length ? `<section class="card"><h2>Используется</h2>${itemUsage(data(), item.id).map(u => `<button class="btn small" data-action="openWorkout" data-day="${u.day}">${dayTitle(u.day)}${u.active ? ' · занятие' : ' · программа'}</button>`).join('')}</section>` : ''}${lastTimeCard(item.id)}${chartCard(item.id)}${historyBlock(item.id)}${legacyRecords(item.id)}${discussButton(item.id)}`;
 }
 
 export const actions = {
+  archiveCatalogItem: async ({ id }) => {
+    const item = findItem(data(), id);
+    if (!item) return;
+    if (!item.archived && itemUsage(data(), id).length) return alert('Сначала уберите упражнение из программы или завершите активное занятие. Места использования показаны на этой странице.');
+    if (item.archived || await ds.confirm('В архив?', 'История, заметка и техника сохранятся.', { ok: 'В архив' })) { if (applied(ctx.uc.archiveItem(id, !item.archived))) ctx.render(); }
+  },
   // Saves a correct open draft, completes the slot and returns to the list; on error stays here.
   completeAndBack: ({ id }) => {
     const workout = activeWorkoutOf(data(), data().tab);
