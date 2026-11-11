@@ -88,17 +88,14 @@ body.kb input,body.kb textarea,body.kb select,body.kb .set-entry{scroll-margin-b
 /* ---------- Grouped list (inset) ---------- */
 .card{border:0;border-radius:var(--r-group);background:var(--surface);padding:var(--space-4);margin-bottom:var(--space-3);box-shadow:var(--shadow)}
 .card>h2,.card .row>h2{font-size:20px;font-weight:700;letter-spacing:.2px}
-.workout-list,.menu-list,.catalog-list,.exercise-list,.list{padding:0;overflow:hidden}
-.exercise-list{padding:0 16px}
+.workout-list,.menu-list,.catalog-list,.list{padding:0;overflow:hidden}
 .workout-row,.menu-row,.catalog-row,.list-row{border-bottom:.5px solid var(--separator);padding-inline:var(--page-gutter)}
 .workout-row{min-height:76px;padding:14px var(--page-gutter);gap:14px}
 .workout-row:last-child,.menu-row:last-child,.catalog-row:last-child,.list-row:last-child{border-bottom:0}
-.workout-row:active,.menu-row:active,.catalog-row:active,.exercise-link:active{background:var(--fill)}
+.workout-row:active,.menu-row:active,.catalog-row:active{background:var(--fill)}
 .workout-row-body strong{font-size:17px;font-weight:600}
 .workout-row-body .muted{font-size:14px}
 .row-chevron,.menu-row span:last-child{color:var(--label3);font-size:22px;font-weight:300}
-.ex{border-bottom:.5px solid var(--separator)}
-.exercise-list .ex:first-child{margin-top:0}.exercise-list .ex:last-child{margin-bottom:0}
 .list-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px var(--page-gutter);font-size:16px}
 .list-row .num{color:var(--label2)}
 .list-row.row-switch{width:100%;min-height:52px;border:0;background:none;color:var(--label);text-align:left;font-weight:400}
@@ -126,10 +123,7 @@ body.kb input,body.kb textarea,body.kb select,body.kb .set-entry{scroll-margin-b
 .check svg{width:16px;height:16px;transition:opacity .15s,transform .4s cubic-bezier(.34,1.56,.64,1)}
 .check svg path{stroke-dasharray:20;stroke-dashoffset:20;transition:stroke-dashoffset .3s var(--ease) .1s}
 .check.checked svg path{stroke-dashoffset:0}
-.ex.completed .ex-name{color:var(--label2);text-decoration:none}
-.ex-name{font-weight:500;transition:color .3s}
 .ex-meta{transition:color .3s}
-.drag-handle{color:var(--label3)}
 
 /* ---------- Controls ---------- */
 .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:var(--r-control);background:var(--fill);color:var(--accent-text);font-size:16px;font-weight:600;padding:10px 16px;-webkit-tap-highlight-color:transparent;transition:opacity .15s,transform .15s}
@@ -262,40 +256,10 @@ dialog.ds-alert.closing::backdrop{animation:fade-out .16s ease forwards}
 .legacy-actions{display:flex;flex-wrap:wrap;gap:8px}
 
 /* ---------- Workout cards ---------- */
-.workout-start{margin-bottom:var(--space-4)}
-.exercise-list.wk-list{padding:0;background:none;box-shadow:none;overflow:visible}
-.exercise-list.wk-list .ex.wk-card{min-height:0;margin:0 0 10px;padding:var(--space-3) var(--page-gutter) 14px;border:0;border-radius:var(--r-group);background:var(--surface);box-shadow:var(--shadow)}
-.wk-card{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-.wk-card input,.wk-card textarea{-webkit-user-select:text;user-select:text}
-.wk-head{display:flex;align-items:flex-start;gap:10px}
-.wk-head .exercise-link{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:4px 0;border:0;background:none;color:var(--label);text-align:left}
-.wk-head .ex-name{font-size:17px;font-weight:600;line-height:1.25}
-.wk-head .drag-handle{padding:6px 0 6px 4px;cursor:grab;touch-action:none}
-.wk-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 0;font-size:14px;color:var(--label)}
-.wk-label{color:var(--label2);min-width:96px}
-.wk-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:16px}
-.wk-actions>.btn{min-width:0;min-height:44px;padding:8px 10px;border-radius:11px;font-size:14px;line-height:1.3;overflow-wrap:anywhere}
-.wk-actions>.btn:not(.primary){background:var(--fill);color:var(--label)}
-.wk-actions>.btn:only-child{grid-column:1/-1}
-.wk-actions>.complete-state:disabled{opacity:1;background:var(--accent-soft);color:var(--accent-text)}
-.wk-head .exercise-link{padding:0;gap:4px}
-.wk-head>.wk-more{flex:none;width:44px;height:44px;margin:-10px -10px -13px 0;color:var(--label2);border-radius:10px}
-.wk-head>.wk-more svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-.wk-head>.wk-more:active{color:var(--label);background:var(--fill)}
-.wk-plan{margin:4px 0 0;color:var(--label2);font-size:14px;line-height:1.4}
-.wk-status.s-done{color:var(--accent-text)}
-.wk-previous{margin-top:8px;color:var(--label2);gap:4px}
-.wk-today{display:grid;gap:4px;margin-top:8px}
-.wk-today>.wk-label{min-width:0;font-size:13px}
-.wk-card .set-chip{min-height:28px;border-radius:8px}
 .workout-start-row{display:flex;align-items:center;border-bottom:.5px solid var(--separator)}
 .workout-start-row:last-child{border-bottom:0}
 .workout-start-row>.workout-row{flex:1;min-width:0;border:0}
 .workout-start-row>.btn{flex:none;margin-right:16px;min-height:44px}
-.wk-card.is-skipped .ex-name{color:var(--label2)}
-.status-pill{flex:none;margin-top:6px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--fill);color:var(--label2);white-space:nowrap}
-.status-pill.s-active{background:var(--accent-soft);color:var(--accent-text)}
-.status-pill.s-done{background:var(--accent);color:var(--on-accent)}
 .notice{display:flex;flex-direction:column;align-items:flex-start;gap:10px;background:var(--accent-soft);box-shadow:none}
 .notice p{margin:0;font-size:15px}
 

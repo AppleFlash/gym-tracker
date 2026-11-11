@@ -31,4 +31,3 @@ export const helpButton = (action, label) => `<button type="button" class="help-
 // Activity ring in the Fitness style: gradient stroke, round cap. size: 'sm' (rows) or 'md' (cards).
 export const ring = (pct, label, size = 'sm') => `<svg class="ring ring-${size}" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--ring-a)"/><stop offset="1" style="stop-color:var(--ring-b)"/></linearGradient></defs><circle class="ring-track" cx="24" cy="24" r="20"/><circle class="ring-fill" cx="24" cy="24" r="20" pathLength="100" stroke-dasharray="${pct} 100"/><text x="24" y="24" dy=".35em" text-anchor="middle">${label}</text></svg>`;
 
-export const STATUS_TEXT = { pending: 'Не начато', active: 'В процессе', done: 'Завершено', skipped: 'Пропущено' };

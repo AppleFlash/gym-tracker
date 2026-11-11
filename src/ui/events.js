@@ -15,14 +15,13 @@ import * as catalogList from './catalog-list.js';
 import * as catalogAi from './sheets/catalog-ai.js';
 import * as variants from './sheets/variants.js';
 import * as edit from './sheets/edit.js';
-import * as reorder from './reorder.js';
 import * as carousel from './components/carousel.js';
 import * as segments from './components/segment-progress.js';
 import * as exerciseCard from './components/exercise-card.js';
 import * as sortable from './components/sortable-list.js';
 import * as order from './sheets/order.js';
 
-const features = [home, workout, exercise, result, chat, profile, history, sets, catalog, catalogList, catalogAi, variants, edit, reorder, carousel, segments, exerciseCard, sortable, order];
+const features = [home, workout, exercise, result, chat, profile, history, sets, catalog, catalogList, catalogAi, variants, edit, carousel, segments, exerciseCard, sortable, order];
 
 const shellActions = {
   tab: ({ id }) => go(id === 'day' ? 'workouts' : id),

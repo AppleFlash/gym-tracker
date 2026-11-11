@@ -1,9 +1,9 @@
-// Workout screen. Without an active workout: the template (slots, alternatives, plan) and "Start".
-// During a workout: progress segments and a carousel with one card per slot (see ui/components).
-import { variantsOf, slotOf } from '../../domain/program.js';
+// Workout screen: progress segments and a carousel with one card per exercise (see ui/components).
+// During a workout the cards take sets; before it they preview the program of the day and the dock starts the workout.
+import { slotOf } from '../../domain/program.js';
 import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutProgress, workoutSummary, lastPerformance, lastCompleted, draftRow, prefill, volumeOf, loadFactor } from '../../domain/workout.js';
 import { ctx, view, data, applied, rerender } from '../context.js';
-import { esc, nice, kg, dayTitle, dayLetter, shortDate, setsText, plural, moreIcon, EXERCISES } from '../format.js';
+import { esc, nice, kg, dayTitle, dayLetter, shortDate, setsText, plural, EXERCISES } from '../format.js';
 import { go } from '../router.js';
 import { dumbbellHint } from '../sets.js';
 import { segmentProgress } from '../components/segment-progress.js';
@@ -17,7 +17,6 @@ const lastTimeText = (weightId, exceptId) => {
   const last = lastPerformance(data(), weightId, exceptId);
   return last ? `${esc(shortDate(last.workout.date))}: ${setsText(last.sets)}` : 'нет данных';
 };
-const handle = '<span class="drag-handle" title="Перетащить" aria-hidden="true">⠿</span>';
 
 // Workout slots follow the current program order; slots no longer in the program stay at the end.
 export function orderedSlots(workout) {
@@ -59,33 +58,44 @@ export function exerciseMenuHtml() {
   </div></div><footer class="sheet-footer"><button class="btn" data-action="close">Закрыть</button></footer></section></dialog>`;
 }
 
-function templateCard(day, slot) {
-  const alternatives = variantsOf(slot).length - 1, id = esc(slot.id);
-  return `<article class="ex wk-card" data-id="${id}" data-day="${day}">
-    <div class="wk-head"><button class="exercise-link" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" title="Удерживайте и перетащите, чтобы изменить порядок. С клавиатуры: Alt + стрелка вверх или вниз." data-action="openWorkoutExercise" data-day="${day}" data-id="${id}"><span class="ex-name">${esc(slot.name)}</span><span class="ex-meta">${slot.sets} × ${esc(slot.range)}${alternatives ? ` · ${plural(alternatives, ['альтернатива', 'альтернативы', 'альтернатив'])}` : ''}</span></button>${handle}<button class="icon-btn wk-more" data-action="exerciseMenu" data-day="${day}" data-id="${id}" aria-label="Действия с упражнением: ${esc(slot.name)}" aria-haspopup="dialog">${moreIcon}</button></div>
-    <p class="wk-line"><span class="wk-label">Прошлый раз</span> ${lastTimeText(slot.weightId)}</p>
-    <div class="wk-actions"><button class="btn small" data-action="openVariants" data-day="${day}" data-id="${id}">Альтернативы</button></div>
-  </article>`;
+// Before the workout starts: a card of the program, without sets. Tap opens the exercise; the menu edits the program.
+function previewCard(day, slot) {
+  const id = esc(slot.id);
+  return exerciseCard({ id: slot.id, state: 'active', title: slot.name, replaced: '', previous: lastTimeText(slot.weightId),
+    open: `data-day="${day}" data-id="${id}"`, menu: `data-action="exerciseMenu" data-day="${day}" data-id="${id}"`, expanded: false, entry: '', sets: [] });
+}
+
+// Exercises of the day in program order: slots of the running workout, else the program itself.
+export function dayEntries(day) {
+  const workout = activeWorkoutOf(data(), day);
+  return workout ? orderedSlots(workout).map(slot => ({ id: slot.id, name: selectedVariant(slot).name })) : (data().days[day] || []).map(slot => ({ id: slot.id, name: slot.name }));
 }
 
 export function workoutPage(day) {
   const workout = activeWorkoutOf(data(), day), template = data().days[day] || [];
+  let caption, segments, slides, key, initial = 0, dock;
   if (workout) {
     const p = workoutProgress(data(), workout), slots = orderedSlots(workout), states = slots.map(slot => slotStatus(data(), workout, slot));
-    const index = carouselIndex(workout.id, slots.length, Math.max(0, states.findIndex(s => s !== 'done' && s !== 'skipped')));
-    const segments = slots.map((slot, i) => ({ id: slot.id, state: states[i] === 'done' ? 'done' : states[i] === 'skipped' ? 'skipped' : 'pending',
+    caption = `${p.done} из ${plural(p.total, EXERCISES)}`;
+    segments = slots.map((slot, i) => ({ id: slot.id, state: states[i] === 'done' ? 'done' : states[i] === 'skipped' ? 'skipped' : 'pending',
       label: `${i + 1}. ${selectedVariant(slot).name}: ${states[i] === 'done' ? 'завершено' : states[i] === 'skipped' ? 'пропущено' : 'не завершено'}` }));
-    return `<h1>${dayTitle(day)}</h1>
-      ${slots.length ? segmentProgress({ caption: `${p.done} из ${plural(p.total, EXERCISES)}`, segments, current: index }) + carousel({ slides: slots.map(slot => slotCard(workout, slot)), index, unit: 'Упражнение', listAction: `data-action="openOrder" data-day="${day}"` }) : '<div class="empty">В занятии нет упражнений.</div>'}
-      <div class="footer-actions stacked dock"><p class="dock-note">Всего объём с отягощением: ${kg(workoutSummary(data(), workout).volume)}</p><button class="btn primary block" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button></div>`;
+    slides = slots.map(slot => slotCard(workout, slot));
+    key = workout.id; initial = Math.max(0, states.findIndex(s => s !== 'done' && s !== 'skipped'));
+    dock = `<p class="dock-note">Всего объём с отягощением: ${kg(workoutSummary(data(), workout).volume)}</p><button class="btn primary block" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button>`;
+  } else {
+    const other = activeWorkouts(data())[0], last = lastCompleted(data(), day);
+    caption = `${plural(template.length, EXERCISES)} · ${last ? 'последняя ' + shortDate(last.date) : 'ещё не выполнялась'}`;
+    segments = template.map((slot, i) => ({ id: slot.id, state: 'pending', label: `${i + 1}. ${slot.name}` }));
+    slides = template.map(slot => previewCard(day, slot));
+    key = 'template:' + day;
+    dock = other
+      ? `<p class="dock-note">Новую тренировку можно начать после завершения текущей.</p><button class="btn primary block" data-action="openWorkout" data-day="${other.day}">Продолжить тренировку ${dayLetter(other.day)}</button>`
+      : `<button class="btn primary block" data-action="startWorkout" data-day="${day}" ${template.length ? '' : 'disabled'}>Начать тренировку</button>`;
   }
-  const other = activeWorkouts(data())[0], last = lastCompleted(data(), day);
-  const start = other
-    ? `<button class="btn primary block" data-action="openWorkout" data-day="${other.day}">Продолжить тренировку ${dayLetter(other.day)}</button><p class="note">Новую тренировку можно начать после завершения текущей.</p>`
-    : `<button class="btn primary block" data-action="startWorkout" data-day="${day}" ${template.length ? '' : 'disabled'}>Начать тренировку</button>`;
-  return `<h1>${dayTitle(day)}</h1><p class="lede">${plural(template.length, EXERCISES)} · ${last ? 'последняя ' + esc(shortDate(last.date)) : 'ещё не выполнялась'}</p>
-    <div class="workout-start">${start}</div>
-    <section class="exercise-list wk-list" aria-label="Упражнения программы">${template.map(slot => templateCard(day, slot)).join('') || '<div class="empty">Пока нет упражнений. Добавьте первое кнопкой «+».</div>'}</section>`;
+  const index = carouselIndex(key, slides.length, initial);
+  return `<h1>${dayTitle(day)}</h1>
+    ${slides.length ? segmentProgress({ caption, segments, current: index }) + carousel({ slides, index, unit: 'Упражнение', listAction: `data-action="openOrder" data-day="${day}"` }) : `<div class="empty">${workout ? 'В занятии нет упражнений.' : 'Пока нет упражнений. Добавьте первое кнопкой «+».'}</div>`}
+    <div class="footer-actions stacked dock">${dock}</div>`;
 }
 
 const activeFor = slotId => activeWorkouts(data()).find(w => findSlot(w, slotId));
