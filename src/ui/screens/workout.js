@@ -3,7 +3,7 @@
 import { variantsOf, slotOf } from '../../domain/program.js';
 import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutProgress, workoutSummary, lastPerformance, lastCompleted, draftRow, prefill, volumeOf, loadFactor } from '../../domain/workout.js';
 import { ctx, view, data, applied, rerender } from '../context.js';
-import { esc, nice, kg, dayTitle, dayLetter, shortDate, setsText, plural, EXERCISES } from '../format.js';
+import { esc, nice, kg, dayTitle, dayLetter, shortDate, setsText, plural, moreIcon, EXERCISES } from '../format.js';
 import { go } from '../router.js';
 import { dumbbellHint } from '../sets.js';
 import { segmentProgress } from '../components/segment-progress.js';
@@ -48,20 +48,21 @@ const slotSetsCount = slot => slot.variants.reduce((n, v) => n + setsOf(slot, v.
 
 export function exerciseMenuHtml() {
   const { day, id } = view.modal, workout = activeWorkoutOf(data(), day), slot = findSlot(workout, id);
-  if (!slot) return '';
-  const chosen = selectedVariant(slot), status = slotStatus(data(), workout, slot);
+  const template = slotOf(data(), day, id);
+  if (!slot && !template) return ''; // no running workout: the card comes from the program template
+  const chosen = slot ? selectedVariant(slot) : template, status = slot ? slotStatus(data(), workout, slot) : null;
   const action = (name, label, cls = '') => `<button class="menu-row ${cls}" data-action="${name}" data-day="${day}" data-id="${esc(id)}">${label}</button>`;
-  return `<dialog class="modal action-sheet" aria-labelledby="exerciseMenuTitle"><section class="card"><p class="action-sheet-title" id="exerciseMenuTitle">${esc(chosen.name)}</p><div class="menu-list">
+  return `<dialog class="modal action-sheet exercise-menu-sheet" aria-labelledby="exerciseMenuTitle"><section class="card"><div class="exercise-menu-content"><p class="action-sheet-title" id="exerciseMenuTitle">${esc(chosen.name)}</p><div class="menu-list">
     ${action('openVariants', 'Альтернативы')}
     ${status === 'skipped' ? action('toggleSkip', 'Вернуть упражнение') : ''}
-    ${slotSetsCount(slot) ? '' : action('removeExercise', 'Удалить из тренировки', 'destructive')}
-  </div><button class="menu-row action-sheet-cancel" data-action="close">Отмена</button></section></dialog>`;
+    ${slot && slotSetsCount(slot) ? '' : action('removeExercise', 'Удалить из тренировки', 'destructive')}
+  </div></div><footer class="sheet-footer"><button class="btn" data-action="close">Закрыть</button></footer></section></dialog>`;
 }
 
 function templateCard(day, slot) {
   const alternatives = variantsOf(slot).length - 1, id = esc(slot.id);
   return `<article class="ex wk-card" data-id="${id}" data-day="${day}">
-    <div class="wk-head"><button class="exercise-link" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" title="Удерживайте и перетащите, чтобы изменить порядок. С клавиатуры: Alt + стрелка вверх или вниз." data-action="openWorkoutExercise" data-day="${day}" data-id="${id}"><span class="ex-name">${esc(slot.name)}</span><span class="ex-meta">${slot.sets} × ${esc(slot.range)}${alternatives ? ` · ${plural(alternatives, ['альтернатива', 'альтернативы', 'альтернатив'])}` : ''}</span></button>${handle}</div>
+    <div class="wk-head"><button class="exercise-link" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" title="Удерживайте и перетащите, чтобы изменить порядок. С клавиатуры: Alt + стрелка вверх или вниз." data-action="openWorkoutExercise" data-day="${day}" data-id="${id}"><span class="ex-name">${esc(slot.name)}</span><span class="ex-meta">${slot.sets} × ${esc(slot.range)}${alternatives ? ` · ${plural(alternatives, ['альтернатива', 'альтернативы', 'альтернатив'])}` : ''}</span></button>${handle}<button class="icon-btn wk-more" data-action="exerciseMenu" data-day="${day}" data-id="${id}" aria-label="Действия с упражнением: ${esc(slot.name)}" aria-haspopup="dialog">${moreIcon}</button></div>
     <p class="wk-line"><span class="wk-label">Прошлый раз</span> ${lastTimeText(slot.weightId)}</p>
     <div class="wk-actions"><button class="btn small" data-action="openVariants" data-day="${day}" data-id="${id}">Альтернативы</button></div>
   </article>`;
@@ -118,7 +119,7 @@ export const actions = {
   },
   toggleSkip: ({ id }) => { const workout = activeFor(id); if (workout && applied(ctx.uc.toggleSkip(workout.id, id))) { view.modal = null; rerender(); } },
   removeExercise: async ({ day, id }) => {
-    const slot = findSlot(activeWorkoutOf(data(), day), id);
+    const slot = findSlot(activeWorkoutOf(data(), day), id) || slotOf(data(), day, id);
     if (!slot || !await ds.confirm('Удалить упражнение?', 'Оно пропадёт из этой тренировки и из программы. В базе упражнение и его история останутся.', { ok: 'Удалить', destructive: true })) return;
     if (applied(ctx.uc.removeFromProgram(day, id))) { view.modal = null; if (view.exerciseId === id) go(day); else rerender(); }
   },
@@ -127,3 +128,4 @@ export const actions = {
     if (choice === 'delete') deleteWorkout(id);
   },
 };
+

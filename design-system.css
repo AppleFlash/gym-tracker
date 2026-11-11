@@ -191,6 +191,8 @@ dialog.action-sheet>.card{padding-top:var(--space-1);padding-bottom:calc(var(--s
 .action-sheet .menu-row{min-height:var(--tap-size);padding:10px 0;font-size:16px;font-weight:400;line-height:1.35}
 .action-sheet .action-sheet-cancel{margin-top:var(--space-2);color:var(--accent-text)}
 .action-sheet .menu-row.destructive{color:var(--red)}
+dialog.exercise-menu-sheet>.card{min-height:0;padding:0;display:flex;flex-direction:column;overflow:hidden}
+.exercise-menu-content{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:var(--space-1) var(--page-gutter) var(--space-2)}
 
 /* ---------- Alert (popup) ---------- */
 dialog.ds-alert{width:270px;max-width:calc(100% - 48px);padding:0;border:0;border-radius:14px;background:var(--alert-bg);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);color:var(--label);overflow:hidden;text-align:center;animation:alert-in .28s var(--ease)}
