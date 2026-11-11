@@ -65,7 +65,7 @@ async function request(m, task) {
 function accept(m, suggestion, properties = null) {
   const result = ctx.uc.acceptAlternative(m.day, m.slotId, m.input, suggestion, properties);
   if (!applied(result)) return;
-  view.modal = null; view.draft = null; rerender();
+  view.modal = null; rerender();
 }
 export const actions = {
   openTechnique: ({ id }) => openTechnique(id),

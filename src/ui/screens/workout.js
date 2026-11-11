@@ -1,9 +1,9 @@
 // Workout screen. Without an active workout: the template (slots, alternatives, plan) and "Start".
 // During a workout: progress segments and a carousel with one card per slot (see ui/components).
 import { variantsOf, slotOf } from '../../domain/program.js';
-import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutProgress, lastPerformance, lastCompleted, draftRow, prefill } from '../../domain/workout.js';
+import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutProgress, workoutSummary, lastPerformance, lastCompleted, draftRow, prefill, volumeOf, loadFactor } from '../../domain/workout.js';
 import { ctx, view, data, applied, rerender } from '../context.js';
-import { esc, nice, dayTitle, dayLetter, shortDate, setsText, plural, EXERCISES } from '../format.js';
+import { esc, nice, kg, dayTitle, dayLetter, shortDate, setsText, plural, EXERCISES } from '../format.js';
 import { go } from '../router.js';
 import { dumbbellHint } from '../sets.js';
 import { segmentProgress } from '../components/segment-progress.js';
@@ -25,7 +25,8 @@ export function orderedSlots(workout) {
   return [...workout.slots].sort((a, b) => index(a.id) - index(b.id));
 }
 
-function activeCard(workout, slot) {
+// detail: the card on the exercise screen — header is plain text, done sets stay open.
+export function slotCard(workout, slot, detail = false) {
   const chosen = selectedVariant(slot), main = mainVariant(slot), status = slotStatus(data(), workout, slot), id = esc(slot.id);
   const state = status === 'done' ? 'done' : status === 'skipped' ? 'skipped' : 'active';
   const ref = { workout: workout.id, slot: slot.id, variant: chosen.id };
@@ -37,8 +38,9 @@ function activeCard(workout, slot) {
   const planned = chosen.sets ?? main.sets;
   return exerciseCard({
     id: slot.id, state, title: chosen.name, replaced: chosen.id !== main.id ? main.name : '', previous: lastTimeText(chosen.weightId, workout.id),
-    open: `data-day="${workout.day}" data-id="${id}"`, menu: `data-action="exerciseMenu" data-day="${workout.day}" data-id="${id}"`,
-    expanded: openCards.has(slot.id), sets,
+    lifted: kg(slot.variants.reduce((sum, v) => sum + volumeOf(setsOf(slot, v.id), loadFactor(data(), v.weightId)), 0)), // dumbbells count as a pair
+    open: detail ? '' : `data-day="${workout.day}" data-id="${id}"`, menu: `data-action="exerciseMenu" data-day="${workout.day}" data-id="${id}"`,
+    expanded: openCards.has(slot.id), flat: detail, sets,
     entry: state === 'active' ? setEntry({ ref, weight: row.weight, reps: row.reps, number: sets.length + 1, hint: dumbbellHint(chosen), completeId: slot.id, completeFirst: sets.length >= planned }) : '',
   });
 }
@@ -65,11 +67,6 @@ function templateCard(day, slot) {
   </article>`;
 }
 
-function weightNotice() {
-  if (data().profile.weightNoticeSeen) return '';
-  return `<section class="card notice"><p>Для упражнений с оборудованием «Гантели» вводите вес одной гантели — объём считается на пару. Укажите оборудование в карточке упражнения.</p><button class="btn small" data-action="dismissWeightNotice">Понятно</button></section>`;
-}
-
 export function workoutPage(day) {
   const workout = activeWorkoutOf(data(), day), template = data().days[day] || [];
   if (workout) {
@@ -78,9 +75,8 @@ export function workoutPage(day) {
     const segments = slots.map((slot, i) => ({ id: slot.id, state: states[i] === 'done' ? 'done' : states[i] === 'skipped' ? 'skipped' : 'pending',
       label: `${i + 1}. ${selectedVariant(slot).name}: ${states[i] === 'done' ? 'завершено' : states[i] === 'skipped' ? 'пропущено' : 'не завершено'}` }));
     return `<h1>${dayTitle(day)}</h1>
-      ${weightNotice()}
-      ${slots.length ? segmentProgress({ caption: `${p.done} из ${plural(p.total, EXERCISES)}`, segments, current: index }) + carousel({ slides: slots.map(slot => activeCard(workout, slot)), index, unit: 'Упражнение', listAction: `data-action="openOrder" data-day="${day}"` }) : '<div class="empty">В занятии нет упражнений.</div>'}
-      <div class="footer-actions stacked dock"><button class="btn primary block" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button></div>`;
+      ${slots.length ? segmentProgress({ caption: `${p.done} из ${plural(p.total, EXERCISES)}`, segments, current: index }) + carousel({ slides: slots.map(slot => slotCard(workout, slot)), index, unit: 'Упражнение', listAction: `data-action="openOrder" data-day="${day}"` }) : '<div class="empty">В занятии нет упражнений.</div>'}
+      <div class="footer-actions stacked dock"><p class="dock-note">Всего объём с отягощением: ${kg(workoutSummary(data(), workout).volume)}</p><button class="btn primary block" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button></div>`;
   }
   const other = activeWorkouts(data())[0], last = lastCompleted(data(), day);
   const start = other
@@ -99,10 +95,10 @@ export const actions = {
     const workout = activeWorkoutOf(data(), day), slot = findSlot(workout, id);
     if (!slot && !slotOf(data(), day, id)) return;
     // Prepare input before navigation so the sliding screen never reflows or opens the keyboard.
+    view.exerciseTab = 'sets';
     if (slot) {
       const variantId = selectedVariant(slot).id;
       if (!applied(ctx.uc.openDraft(workout.id, slot.id, variantId))) return;
-      view.draft = { workoutId: workout.id, slotId: slot.id, variantId };
     }
     go(day, id);
   },
@@ -111,21 +107,21 @@ export const actions = {
   completeSlot: ({ id }) => {
     const workout = activeFor(id);
     if (!workout || !applied(ctx.uc.completeSlot(workout.id, id))) return;
-    view.modal = null; if (view.draft?.slotId === id) view.draft = null;
+    view.modal = null;
     // Move on to the next unfinished exercise (after this one first, then from the start).
     const fresh = activeFor(id), slots = orderedSlots(fresh), at = slots.findIndex(s => s.id === id);
     const pending = i => !['done', 'skipped'].includes(slotStatus(data(), fresh, slots[i]));
     const next = [...slots.keys()].filter(i => i > at).find(pending) ?? [...slots.keys()].find(pending);
     if (next !== undefined) advanceCarousel(next);
+    if (view.exerciseId === id) return go(fresh.day); // finished from the exercise screen: back to the list
     rerender();
   },
   toggleSkip: ({ id }) => { const workout = activeFor(id); if (workout && applied(ctx.uc.toggleSkip(workout.id, id))) { view.modal = null; rerender(); } },
   removeExercise: async ({ day, id }) => {
     const slot = findSlot(activeWorkoutOf(data(), day), id);
     if (!slot || !await ds.confirm('Удалить упражнение?', 'Оно пропадёт из этой тренировки и из программы. В базе упражнение и его история останутся.', { ok: 'Удалить', destructive: true })) return;
-    if (applied(ctx.uc.removeFromProgram(day, id))) { view.modal = null; if (view.draft?.slotId === id) view.draft = null; rerender(); }
+    if (applied(ctx.uc.removeFromProgram(day, id))) { view.modal = null; if (view.exerciseId === id) go(day); else rerender(); }
   },
-  dismissWeightNotice: () => { if (applied(ctx.uc.dismissWeightNotice())) rerender(); },
   workoutMenu: async ({ id }) => {
     const choice = await ds.alert({ title: 'Занятие', actions: [{ label: 'Удалить занятие', value: 'delete', style: 'destructive' }, { label: 'Отмена', value: null, cancel: true }] });
     if (choice === 'delete') deleteWorkout(id);

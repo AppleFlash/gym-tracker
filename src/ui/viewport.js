@@ -1,6 +1,17 @@
 // iOS viewport handling: only the on-screen keyboard may shrink the app shell; the document never scrolls.
 export const viewport = { max: 0 };
 
+// The sticky exercise progress bar covers the top of the scroll area: keep the field clear of it.
+// (The dock is hidden while the keyboard is open, see design-system.css.) The whole entry form is revealed, so its buttons stay reachable too.
+export function revealFocused(field) {
+  const app = field.closest('#app'), target = field.closest('.set-entry') || field;
+  if (app) {
+    const box = app.getBoundingClientRect(), top = app.querySelector('.sp');
+    app.style.scrollPaddingTop = top ? Math.max(0, top.getBoundingClientRect().bottom - box.top) + 'px' : '';
+  }
+  target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+}
+
 export function syncViewport() {
   const root = document.documentElement, height = window.visualViewport?.height || innerHeight;
   root.classList.toggle('standalone', navigator.standalone === true || matchMedia('(display-mode: standalone)').matches);
@@ -12,7 +23,7 @@ export function syncViewport() {
   else root.style.removeProperty('--keyboard-height');
   if (scrollY) scrollTo(0, 0);
   if (keyboard && editing) requestAnimationFrame(() => {
-    if (focused === document.activeElement) focused.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+    if (focused === document.activeElement) revealFocused(focused);
     if (scrollY) scrollTo(0, 0);
   });
 }

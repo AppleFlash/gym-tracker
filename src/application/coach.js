@@ -64,7 +64,11 @@ export function coachPrompt(data, now, context = null) {
   } else if (context?.kind === 'exercise') {
     const runs = performancesOf(data, context.weightId);
     selected = runs.slice(-6).map(r => r.workout);
-    sample = { kind: 'exercise', weightId: context.weightId, name: findItem(data, context.weightId)?.name, ...bounds(selected, runs.map(r => r.workout)) };
+    // The workout the user is in is not completed yet, so it is not among the runs: add it explicitly (even with no sets yet).
+    const current = context.workoutId && findWorkout(data, context.workoutId), slot = current?.slots.find(s => s.variants.some(v => v.weightId === context.weightId));
+    if (current && !selected.includes(current)) selected.push(current);
+    sample = { kind: 'exercise', weightId: context.weightId, name: findItem(data, context.weightId)?.name, ...bounds(selected.filter(w => w.status === 'completed'), runs.map(r => r.workout)),
+      ...(current ? { currentWorkoutId: current.id, currentExerciseStatus: slot?.status || null, currentNote: 'Текущее занятие ещё не завершено; его подходы переданы вместе с прошлыми.' } : {}) };
   } else {
     selected = all.slice(-6);
     sample = { kind: 'chat', ...bounds(selected, all) };

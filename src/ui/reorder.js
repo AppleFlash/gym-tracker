@@ -35,7 +35,7 @@ function endDrag(ev) {
 export const listeners = [
   ['pointerdown', ev => {
     const row = ev.target.closest('.ex[data-id]');
-    if (!row || drag || ev.button || ev.target.closest('.wk-actions,.wk-more,.quick-set,.set-chips,.draft-hint,input,textarea')) return;
+    if (!row || drag || ev.button || ev.target.closest('.wk-actions,.wk-more,.set-entry,.set-chips,input,textarea')) return;
     if (ev.pointerType === 'mouse' && ev.target.closest('.drag-handle')) {
       ev.preventDefault(); startDrag(row, ev.clientY); return;
     }

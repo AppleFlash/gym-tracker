@@ -47,17 +47,15 @@ export async function finishWorkout(workoutId) {
     const slot = workout.slots.find(s => s.id === draft.slotId);
     if (slot.selectedId !== draft.variantId && !applied(ctx.uc.selectVariant(workoutId, draft.slotId, draft.variantId))) return;
     if (data().tab !== workout.day || view.exerciseId) go(workout.day, null, false);
-    view.draft = { workoutId, ...draft };
     ctx.render();
-    const input = document.querySelector('.quick-set [data-draft-field="weight"]');
+    const input = document.querySelector(`.set-entry[data-slot="${draft.slotId}"] [data-draft-field="weight"]`);
     input?.scrollIntoView({ block: 'center' });
     input?.focus({ preventScroll: true });
-    return alert('Сохраните или удалите черновик подхода.');
+    return alert('Сохраните подход или очистите поля ввода.');
   }
   const s = workoutSummary(data(), workout);
   if (!await ds.confirm('Завершить тренировку?', `Завершено ${s.done} из ${s.total}, подходов: ${s.setCount}. Упражнения без подходов будут отмечены как пропущенные.`, { ok: 'Завершить' })) return;
   if (!applied(ctx.uc.finishWorkout(workoutId))) return;
-  view.draft = null;
   view.resultFrom = 'workouts';
   go('result', workoutId);
 }
@@ -65,7 +63,6 @@ export async function finishWorkout(workoutId) {
 export async function deleteWorkout(workoutId) {
   if (!await ds.confirm('Удалить занятие?', 'Будут удалены подходы этого занятия. Программа и прошлая история сохранятся.', { ok: 'Удалить', destructive: true })) return;
   if (!applied(ctx.uc.deleteWorkout(workoutId))) return;
-  view.draft = null;
   go('workouts');
 }
 

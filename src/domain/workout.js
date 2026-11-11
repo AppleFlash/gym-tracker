@@ -70,7 +70,6 @@ function dropDraftRow(data, workoutId, slotId, variantId) {
   if (drafts && !drafts[key]?.length) delete drafts[key];
   if (drafts && !Object.keys(drafts).length) delete data.drafts[workoutId];
 }
-export const cancelDraft = (data, workoutId, slotId, variantId) => draftRow(data, workoutId, slotId, variantId) ? dropDraftRow(data, workoutId, slotId, variantId) : false;
 
 /* ---------- Sets ---------- */
 // Weight as shown on the equipment: one dumbbell for dumbbell exercises, total load otherwise. Comma or dot as decimal separator.

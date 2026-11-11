@@ -1,12 +1,14 @@
-// Exercise screen. In a workout: last time, today's sets with entry, finish; then chart and history.
-// From the profile ('item' route): the same history of a catalog exercise without the workout part.
+// Exercise screen. In a workout: title, segments «Подходы / Аналитика / История».
+//   Подходы: the exercise card (same component as in the carousel). Аналитика: last time, progress, discuss with AI.
+//   История: runs and the legacy journal. From the profile ('item' route): the same history without the workout part.
 import { slotOf } from '../../domain/program.js';
 import { findItem, itemGroup, itemUsage, EQUIPMENT } from '../../domain/catalog.js';
-import { activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, performancesOf, lastPerformance, representativeSet } from '../../domain/workout.js';
-import { ctx, view, data, applied } from '../context.js';
-import { esc, nice, hasReps, dayTitle, shortDate, longDate, setsText, plural, SETS, STATUS_TEXT } from '../format.js';
+import { activeWorkoutOf, findSlot, selectedVariant, performancesOf, lastPerformance, representativeSet } from '../../domain/workout.js';
+import { ctx, view, data, route } from '../context.js';
+import { esc, nice, hasReps, dayTitle, shortDate, longDate, setsText, plural, SETS } from '../format.js';
 import { go } from '../router.js';
-import { setChips, quickRow, isOpen } from '../sets.js';
+import { segmented } from '../components/segmented.js';
+import { slotCard } from './workout.js';
 import { discuss } from './chat.js';
 
 function lastTimeCard(weightId, exceptId) {
@@ -34,21 +36,21 @@ function legacyRecords(weightId) {
   return `<h2 class="group-title">Ранее сохранённые записи</h2><section class="card list" aria-label="Ранее сохранённые записи">${[...item.records].reverse().map(r => `<button class="list-row rec-row" data-action="editRecord" data-group="${esc(group.id)}" data-id="${esc(item.id)}" data-record="${esc(r.id)}"><span>${r.date ? esc(longDate(r.date)) : 'Без даты'}</span><span class="num">${nice(r.weight)} кг${hasReps(r) ? ' × ' + esc(r.reps) : ''}</span></button>`).join('')}</section><p class="note">Записи журнала из прошлой версии. В график не входят.</p>`;
 }
 
-const discussButton = weightId => weightId ? `<button class="btn block" data-action="discussExercise" data-id="${esc(weightId)}">Обсудить прогресс с ИИ</button>` : '';
+const discussButton = (weightId, workoutId = '') => weightId ? `<button class="btn block" data-action="discussExercise" data-id="${esc(weightId)}" ${workoutId ? `data-workout="${esc(workoutId)}"` : ''}>${workoutId ? 'Обсудить с ИИ' : 'Обсудить прогресс с ИИ'}</button>` : '';
+
+const TABS = [['sets', 'Подходы'], ['analytics', 'Аналитика'], ['history', 'История']];
+
+// Content of the selected segment; swapped alone when the segment changes.
+function panelHtml(day, slotId) {
+  const workout = activeWorkoutOf(data(), day), slot = findSlot(workout, slotId), weightId = (slot ? selectedVariant(slot) : slotOf(data(), day, slotId)).weightId;
+  if (view.exerciseTab === 'analytics') return lastTimeCard(weightId, workout?.id) + chartCard(weightId) + discussButton(weightId, workout?.id);
+  if (view.exerciseTab === 'history') return (historyBlock(weightId) + legacyRecords(weightId)) || '<p class="note">Истории по этому упражнению пока нет.</p>';
+  return slot ? slotCard(workout, slot, true) : '<div class="empty">Начните тренировку, чтобы записывать подходы.</div>';
+}
 
 export function exercisePage(day, slotId) {
-  const workout = activeWorkoutOf(data(), day), slot = findSlot(workout, slotId), template = slotOf(data(), day, slotId);
-  const variant = slot ? selectedVariant(slot) : template, main = slot ? mainVariant(slot) : template, weightId = variant.weightId;
-  let today = '';
-  if (slot) {
-    const status = slotStatus(data(), workout, slot), others = slot.variants.filter(v => v.id !== variant.id && setsOf(slot, v.id).length);
-    today = `<section class="card">${findItem(data(), weightId)?.note ? `<p class="personal-note">${esc(findItem(data(), weightId).note)}</p>` : ''}<div class="row"><h2>Сегодня</h2><span class="status-pill s-${status}">${STATUS_TEXT[status]}</span></div>
-      ${setChips(workout, slot, variant.id) || '<p class="note">Подходов пока нет.</p>'}
-      ${others.map(v => `<p class="note">Также: ${esc(v.name)} — ${setsText(setsOf(slot, v.id))}</p>`).join('')}
-      ${isOpen(workout, slot, variant.id) ? quickRow(workout, slot, variant.id, 'completeAndBack') : `<div class="exercise-actions"><button class="btn small primary" data-action="addSet" data-workout="${esc(workout.id)}" data-slot="${esc(slot.id)}" data-variant="${esc(variant.id)}">+ Подход</button><button class="btn small primary" data-action="completeAndBack" data-id="${esc(slot.id)}">Завершить упражнение</button></div>`}</section>`;
-  }
-  return `<h1 class="wrap">${esc(variant.name)}</h1><p class="lede">${dayTitle(day)}${variant.id !== main.id ? ' · вместо: ' + esc(main.name) : ''} · ${variant.sets ?? main.sets} × ${esc(variant.range ?? main.range)}</p>
-    ${weightId ? `<div class="exercise-tools"><button class="btn small" data-action="openTechnique" data-id="${esc(weightId)}">Техника</button></div>` : ''}${lastTimeCard(weightId, workout?.id)}${today}${chartCard(weightId)}${historyBlock(weightId)}${legacyRecords(weightId)}${discussButton(weightId)}`;
+  const slot = findSlot(activeWorkoutOf(data(), day), slotId), variant = slot ? selectedVariant(slot) : slotOf(data(), day, slotId);
+  return `<h1 class="wrap">${esc(variant.name)}</h1>${segmented({ name: 'exercise-tab', label: 'Раздел упражнения', items: TABS, value: view.exerciseTab })}<div class="exercise-panel">${panelHtml(day, slotId)}</div>`;
 }
 
 export function itemPage(itemId) {
@@ -65,17 +67,18 @@ export const actions = {
     if (!item.archived && itemUsage(data(), id).length) return alert('Сначала уберите упражнение из программы или завершите активное занятие. Места использования показаны на этой странице.');
     if (item.archived || await ds.confirm('В архив?', 'История, заметка и техника сохранятся.', { ok: 'В архив' })) { if (applied(ctx.uc.archiveItem(id, !item.archived))) ctx.render(); }
   },
-  // Saves a correct open draft, completes the slot and returns to the list; on error stays here.
-  completeAndBack: ({ id }) => {
-    const workout = activeWorkoutOf(data(), data().tab);
-    if (!workout || !applied(ctx.uc.completeSlot(workout.id, id))) return;
-    view.draft = null;
-    go(workout.day);
-  },
   editRecord: ({ group, id, record }) => { view.modal = { type: 'record', group, id, recordId: record }; ctx.render(); },
   openItem: ({ id, from }) => { view.itemParent = from || 'exercises'; go('item', id); },
-  discussExercise: ({ id }) => {
+  // With a workout the coach also gets the sets of this exercise from the running workout.
+  discussExercise: ({ id, workout }) => {
     const name = findItem(data(), id)?.name || 'упражнение';
-    discuss({ kind: 'exercise', weightId: id, label: name }, `Как идёт мой прогресс в упражнении «${name}»? На что обратить внимание?`);
+    discuss({ kind: 'exercise', weightId: id, label: name, ...(workout ? { workoutId: workout } : {}) }, `Как идёт моё упражнение «${name}»${workout ? ' в этой тренировке' : ''}? На что обратить внимание?`);
   },
 };
+
+export const listeners = [['change', ev => {
+  if (!ev.target.matches('#app input[name="exercise-tab"]')) return;
+  view.exerciseTab = ev.target.value;
+  const { tab, id } = route();
+  document.querySelector('#app .exercise-panel').innerHTML = panelHtml(tab, id);
+}]];

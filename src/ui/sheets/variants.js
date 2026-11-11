@@ -38,7 +38,6 @@ export const actions = {
     const result = ctx.uc.selectVariant(workout.id, m.slotId, id);
     if (result && !applied(result)) return;
     view.modal = null;
-    if (view.draft?.slotId === m.slotId) view.draft = null;
     rerender();
   },
   addAlternativeFromSheet: () => { const m = view.modal; openCatalog(m.day, m.slotId); },

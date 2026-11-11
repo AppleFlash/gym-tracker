@@ -44,7 +44,6 @@ export function createUseCases({ store, clock = () => new Date(), coach }) {
     toggleSkip: (id, slotId) => run(d => workouts.toggleSkip(d, id, slotId)),
     openDraft: (id, slotId, variantId) => run(d => workouts.openDraft(d, id, slotId, variantId)),
     editDraft: (id, slotId, variantId, field, value) => inPlace(d => workouts.editDraft(d, id, slotId, variantId, field, value)),
-    cancelDraft: (id, slotId, variantId) => run(d => workouts.cancelDraft(d, id, slotId, variantId)),
     saveSet: (id, slotId, variantId, input) => run(d => workouts.saveSet(d, id, slotId, variantId, input)),
     updateSet: (id, slotId, variantId, setId, input) => run(d => workouts.updateSet(d, id, slotId, variantId, setId, input)),
     removeSet: (id, slotId, variantId, setId) => run(d => workouts.removeSet(d, id, slotId, variantId, setId)),
@@ -79,7 +78,6 @@ export function createUseCases({ store, clock = () => new Date(), coach }) {
 
     // Profile
     setProfileText: (field, text) => run(d => { if (!['goal', 'context'].includes(field)) return false; d.profile[field] = text; }),
-    dismissWeightNotice: () => run(d => { d.profile.weightNoticeSeen = true; }),
 
     editFact: (id, text) => run(d => {
       const fact = d.profile.facts.find(f => f.id === id);
