@@ -15,6 +15,8 @@ import { catalogHtml, catalogDepth } from './sheets/catalog.js';
 import { variantsHtml } from './sheets/variants.js';
 import { techniqueHtml, alternativeHtml } from './sheets/catalog-ai.js';
 import { editSheetHtml } from './sheets/edit.js';
+import { orderHtml } from './sheets/order.js';
+import { restoreCarousel } from './components/carousel.js';
 
 const TABS = [
   ['day', 'Тренировки', '<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>'],
@@ -60,7 +62,7 @@ function pageHtml({ tab, id }) {
 // Full screen markup for any route; also used for the swipe-back preview of the parent screen.
 export const screenHtml = r => navBarHtml(r) + `<div class="screen-body">${pageHtml(r)}</div>`;
 
-const SHEETS = { agreements: agreementsHtml, catalog: catalogHtml, variants: variantsHtml, technique: techniqueHtml, 'alternative-ai': alternativeHtml, 'exercise-menu': exerciseMenuHtml };
+const SHEETS = { agreements: agreementsHtml, catalog: catalogHtml, variants: variantsHtml, technique: techniqueHtml, 'alternative-ai': alternativeHtml, 'exercise-menu': exerciseMenuHtml, 'exercise-order': orderHtml };
 const sheetHtml = () => !view.modal ? '' : (SHEETS[view.modal.type] || editSheetHtml)();
 
 export function render() {
@@ -75,6 +77,7 @@ export function render() {
   view.sheetDepth = depth;
   app.innerHTML = sheetHtml() + screenHtml(r);
   document.body.classList.toggle('sheet-open', !!view.modal);
+  restoreCarousel();
   if (r.tab === 'chat') drawChat();
   const dialog = app.querySelector('dialog.modal');
   if (dialog) { dialog.showModal(); ds.sheetOpened(dialog, !!openSheet); ds.sheetSlide(dialog, sheetSnap, sheetDir); }

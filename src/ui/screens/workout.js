@@ -1,12 +1,15 @@
 // Workout screen. Without an active workout: the template (slots, alternatives, plan) and "Start".
-// During a workout: one card per slot with last time, today's sets, quick set entry, replace, finish/skip.
-import { findItem } from '../../domain/catalog.js';
+// During a workout: progress segments and a carousel with one card per slot (see ui/components).
 import { variantsOf, slotOf } from '../../domain/program.js';
-import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutProgress, lastPerformance, lastCompleted } from '../../domain/workout.js';
+import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutProgress, lastPerformance, lastCompleted, draftRow, prefill } from '../../domain/workout.js';
 import { ctx, view, data, applied, rerender } from '../context.js';
-import { esc, dayTitle, dayLetter, shortDate, setsText, plural, EXERCISES, SETS, STATUS_TEXT, moreIcon } from '../format.js';
+import { esc, nice, dayTitle, dayLetter, shortDate, setsText, plural, EXERCISES } from '../format.js';
 import { go } from '../router.js';
-import { setChips, quickRow, draftHint, isOpen } from '../sets.js';
+import { dumbbellHint } from '../sets.js';
+import { segmentProgress } from '../components/segment-progress.js';
+import { carousel, carouselIndex, advanceCarousel } from '../components/carousel.js';
+import { exerciseCard, open as openCards } from '../components/exercise-card.js';
+import { setEntry } from '../components/set-entry.js';
 import { openCatalog } from '../sheets/catalog.js';
 import { deleteWorkout } from './home.js';
 
@@ -17,29 +20,27 @@ const lastTimeText = (weightId, exceptId) => {
 const handle = '<span class="drag-handle" title="Перетащить" aria-hidden="true">⠿</span>';
 
 // Workout slots follow the current program order; slots no longer in the program stay at the end.
-function orderedSlots(workout) {
+export function orderedSlots(workout) {
   const order = (data().days[workout.day] || []).map(e => e.id), index = id => { const i = order.indexOf(id); return i < 0 ? order.length : i; };
   return [...workout.slots].sort((a, b) => index(a.id) - index(b.id));
 }
 
 function activeCard(workout, slot) {
   const chosen = selectedVariant(slot), main = mainVariant(slot), status = slotStatus(data(), workout, slot), id = esc(slot.id);
-  const count = slotSetsCount(slot), canComplete = count > 0 && status !== 'done' && status !== 'skipped';
-  const done = status === 'done', ready = canComplete && count >= (chosen.sets ?? main.sets);
-  const open = isOpen(workout, slot, chosen.id);
-  const others = slot.variants.filter(v => v.id !== chosen.id && setsOf(slot, v.id).length)
-    .map(v => `${esc(v.name)} — ${plural(setsOf(slot, v.id).length, SETS)}`);
-  return `<article class="ex wk-card is-${status}" data-id="${id}" data-day="${workout.day}">
-    <div class="wk-head"><button class="exercise-link" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" title="Удерживайте и перетащите, чтобы изменить порядок. С клавиатуры: Alt + стрелка вверх или вниз." data-action="openWorkoutExercise" data-day="${workout.day}" data-id="${id}"><span class="ex-name">${esc(chosen.name)}</span>${chosen.id !== main.id ? `<span class="ex-meta">Вместо: ${esc(main.name)}</span>` : ''}</button><button class="icon-btn wk-more" data-action="exerciseMenu" data-day="${workout.day}" data-id="${id}" aria-label="Действия с упражнением: ${esc(chosen.name)}" aria-haspopup="dialog">${moreIcon}</button></div>
-    <p class="wk-plan">${chosen.sets ?? main.sets} × ${esc(chosen.range ?? main.range)}<span aria-hidden="true"> · </span><span class="wk-status s-${status}">${STATUS_TEXT[status]}</span></p>
-    <p class="wk-line wk-previous"><span>Прошлый раз ·</span> ${lastTimeText(chosen.weightId, workout.id)}</p>
-    ${setsOf(slot, chosen.id).length ? `<div class="wk-line wk-today"><span class="wk-label">Сегодня</span>${setChips(workout, slot, chosen.id)}</div>` : ''}
-    ${others.length ? `<p class="wk-line"><span class="wk-label">Также</span> ${others.join(', ')}</p>` : ''}
-    ${slot.legacyDone ? '<p class="wk-line note">Отмечено выполненным в прошлой версии, подходы не записаны.</p>' : ''}
-    ${findItem(data(), chosen.weightId)?.note ? `<p class="personal-note">${esc(findItem(data(), chosen.weightId).note)}</p>` : ''}
-    ${open ? quickRow(workout, slot, chosen.id, 'completeSlot') : draftHint(workout, slot, chosen.id)}
-    ${open ? '' : `<div class="wk-actions"><button class="btn ${ready || done ? '' : 'primary'} add-set-action" data-action="addSet" data-workout="${esc(workout.id)}" data-slot="${id}" data-variant="${esc(chosen.id)}">+ Подход</button>${canComplete ? `<button class="btn ${ready ? 'primary' : ''}" data-action="completeSlot" data-id="${id}" aria-label="Завершить упражнение: ${esc(chosen.name)}">Завершить</button>` : done ? '<button class="btn complete-state" disabled>Завершено</button>' : `<button class="btn" data-action="openVariants" data-day="${workout.day}" data-id="${id}">Альтернативы</button>`}</div>`}
-  </article>`;
+  const state = status === 'done' ? 'done' : status === 'skipped' ? 'skipped' : 'active';
+  const ref = { workout: workout.id, slot: slot.id, variant: chosen.id };
+  // Sets of the chosen alternative first, then sets already logged under other alternatives.
+  const sets = [chosen, ...slot.variants.filter(v => v.id !== chosen.id)].flatMap(v => setsOf(slot, v.id).map(s => ({ s, v })))
+    .map(({ s, v }, i) => ({ number: i + 1, text: `${nice(s.weight)} кг × ${s.reps}`, note: v.id === chosen.id ? '' : v.name, attrs: `data-workout="${esc(workout.id)}" data-slot="${id}" data-variant="${esc(v.id)}" data-set="${esc(s.id)}"` }));
+  // The input always shows the stored draft, else the values to repeat; the draft is stored on the first keystroke.
+  const row = draftRow(data(), workout.id, slot.id, chosen.id) || prefill(data(), workout, slot, chosen.id);
+  const planned = chosen.sets ?? main.sets;
+  return exerciseCard({
+    id: slot.id, state, title: chosen.name, replaced: chosen.id !== main.id ? main.name : '', previous: lastTimeText(chosen.weightId, workout.id),
+    open: `data-day="${workout.day}" data-id="${id}"`, menu: `data-action="exerciseMenu" data-day="${workout.day}" data-id="${id}"`,
+    expanded: openCards.has(slot.id), sets,
+    entry: state === 'active' ? setEntry({ ref, weight: row.weight, reps: row.reps, number: sets.length + 1, hint: dumbbellHint(chosen), completeId: slot.id, completeFirst: sets.length >= planned }) : '',
+  });
 }
 const slotSetsCount = slot => slot.variants.reduce((n, v) => n + setsOf(slot, v.id).length, 0);
 
@@ -47,12 +48,11 @@ export function exerciseMenuHtml() {
   const { day, id } = view.modal, workout = activeWorkoutOf(data(), day), slot = findSlot(workout, id);
   if (!slot) return '';
   const chosen = selectedVariant(slot), status = slotStatus(data(), workout, slot);
-  const action = (name, label) => `<button class="menu-row" data-action="${name}" data-day="${day}" data-id="${esc(id)}">${label}</button>`;
+  const action = (name, label, cls = '') => `<button class="menu-row ${cls}" data-action="${name}" data-day="${day}" data-id="${esc(id)}">${label}</button>`;
   return `<dialog class="modal action-sheet" aria-labelledby="exerciseMenuTitle"><section class="card"><p class="action-sheet-title" id="exerciseMenuTitle">${esc(chosen.name)}</p><div class="menu-list">
-    ${chosen.weightId ? `<button class="menu-row" data-action="openTechnique" data-id="${esc(chosen.weightId)}">Техника</button>` : ''}
-    ${slotSetsCount(slot) || status === 'done' || isOpen(workout, slot, chosen.id) ? action('openVariants', 'Альтернативы') : ''}
-    ${status === 'skipped' ? action('toggleSkip', 'Вернуть упражнение') : status !== 'done' && !slotSetsCount(slot) ? action('toggleSkip', 'Пропустить') : ''}
-    ${slotSetsCount(slot) ? '' : action('removeExercise', 'Удалить из тренировки').replace('class="menu-row"', 'class="menu-row destructive"')}
+    ${action('openVariants', 'Альтернативы')}
+    ${status === 'skipped' ? action('toggleSkip', 'Вернуть упражнение') : ''}
+    ${slotSetsCount(slot) ? '' : action('removeExercise', 'Удалить из тренировки', 'destructive')}
   </div><button class="menu-row action-sheet-cancel" data-action="close">Отмена</button></section></dialog>`;
 }
 
@@ -73,11 +73,14 @@ function weightNotice() {
 export function workoutPage(day) {
   const workout = activeWorkoutOf(data(), day), template = data().days[day] || [];
   if (workout) {
-    const p = workoutProgress(data(), workout);
-    return `<h1>${dayTitle(day)}</h1><p class="lede">${p.done} из ${plural(p.total, EXERCISES)} завершено</p>
+    const p = workoutProgress(data(), workout), slots = orderedSlots(workout), states = slots.map(slot => slotStatus(data(), workout, slot));
+    const index = carouselIndex(workout.id, slots.length, Math.max(0, states.findIndex(s => s !== 'done' && s !== 'skipped')));
+    const segments = slots.map((slot, i) => ({ id: slot.id, state: states[i] === 'done' ? 'done' : states[i] === 'skipped' ? 'skipped' : 'pending',
+      label: `${i + 1}. ${selectedVariant(slot).name}: ${states[i] === 'done' ? 'завершено' : states[i] === 'skipped' ? 'пропущено' : 'не завершено'}` }));
+    return `<h1>${dayTitle(day)}</h1>
       ${weightNotice()}
-      <section class="exercise-list wk-list" aria-label="Упражнения тренировки">${orderedSlots(workout).map(slot => activeCard(workout, slot)).join('') || '<div class="empty">В занятии нет упражнений.</div>'}</section>
-      <div class="footer-actions stacked"><button class="btn primary block" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button></div>`;
+      ${slots.length ? segmentProgress({ caption: `${p.done} из ${plural(p.total, EXERCISES)}`, segments, current: index }) + carousel({ slides: slots.map(slot => activeCard(workout, slot)), index, unit: 'Упражнение', listAction: `data-action="openOrder" data-day="${day}"` }) : '<div class="empty">В занятии нет упражнений.</div>'}
+      <div class="footer-actions stacked dock"><button class="btn primary block" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button></div>`;
   }
   const other = activeWorkouts(data())[0], last = lastCompleted(data(), day);
   const start = other
@@ -107,7 +110,14 @@ export const actions = {
   openVariants: ({ day, id }) => { view.modal = { type: 'variants', day, slotId: id }; ctx.render(); },
   completeSlot: ({ id }) => {
     const workout = activeFor(id);
-    if (workout && applied(ctx.uc.completeSlot(workout.id, id))) { view.modal = null; if (view.draft?.slotId === id) view.draft = null; rerender(); }
+    if (!workout || !applied(ctx.uc.completeSlot(workout.id, id))) return;
+    view.modal = null; if (view.draft?.slotId === id) view.draft = null;
+    // Move on to the next unfinished exercise (after this one first, then from the start).
+    const fresh = activeFor(id), slots = orderedSlots(fresh), at = slots.findIndex(s => s.id === id);
+    const pending = i => !['done', 'skipped'].includes(slotStatus(data(), fresh, slots[i]));
+    const next = [...slots.keys()].filter(i => i > at).find(pending) ?? [...slots.keys()].find(pending);
+    if (next !== undefined) advanceCarousel(next);
+    rerender();
   },
   toggleSkip: ({ id }) => { const workout = activeFor(id); if (workout && applied(ctx.uc.toggleSkip(workout.id, id))) { view.modal = null; rerender(); } },
   removeExercise: async ({ day, id }) => {

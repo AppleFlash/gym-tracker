@@ -34,7 +34,7 @@ api.go=(dir,mutate,{from,to,animate=true}={})=>{
   if(from)api.scroll.set(from,app.scrollTop);
   const move=dir&&animate&&!busy&&!reduced()&&!!app.animate;
   let snap=null;
-  if(move){snap=layer(app);stack.append(snap);snap.scrollTop=app.scrollTop;}
+  if(move){snap=layer(app);stack.append(snap);snap.scrollTop=app.scrollTop;const t=app.querySelector('.car-track'),c=snap.querySelector('.car-track');if(t&&c)c.scrollLeft=t.scrollLeft;}
   api.fresh=animate;mutate();api.fresh=false;
   app.scrollTop=dir<0&&to?api.scroll.get(to)||0:0;
   api.syncNavbar();
@@ -150,7 +150,7 @@ api.sheetSlide=(dlg,snap,dir)=>{
 /* ---------- Toggles: the screen is re-rendered on every change, so replay the flip ----------
    Capture on/off state of switches, checkmarks and completed rows before rendering, then show the old state
    for one frame and flip to the new one, so CSS transitions run. */
-const TOGGLES='[role=switch],.check,.ex[data-id]';
+const TOGGLES='[role=switch],.check,.sp-cell,.ex[data-id]';
 const tkey=el=>(el.dataset.action||'')+'|'+(el.dataset.day||'')+'|'+(el.dataset.id||'');
 const tcls=el=>el.matches('.ex')?'completed':'checked';
 const isOn=el=>el.hasAttribute('aria-checked')?el.getAttribute('aria-checked')==='true':el.classList.contains(tcls(el));

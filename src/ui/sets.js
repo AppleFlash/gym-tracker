@@ -4,6 +4,8 @@ import { draftRow, setsOf, loadFactor } from '../domain/workout.js';
 import { ctx, view, data, applied, rerender } from './context.js';
 import { esc, nice, helpButton } from './format.js';
 
+// Entry forms: the inline row on the exercise screen and the always-open card form.
+const ENTRY = '.quick-set, .set-entry';
 const refAttrs = (workout, slot, variantId) => `data-workout="${esc(workout.id)}" data-slot="${esc(slot.id)}" data-variant="${esc(variantId)}"`;
 // Dumbbell exercises take the weight of one dumbbell.
 export const dumbbellHint = variant => loadFactor(data(), variant?.weightId) === 2 ? '<p class="qs-hint">Укажите вес гантели</p>' : '';
@@ -58,16 +60,19 @@ export const actions = {
 
 export const listeners = [
   ['input', ev => {
-    const field = ev.target.dataset.draftField, form = ev.target.closest('.quick-set');
-    if (field && form) ctx.uc.editDraft(form.dataset.workout, form.dataset.slot, form.dataset.variant, field, ev.target.value);
+    const field = ev.target.dataset.draftField, form = ev.target.closest(ENTRY);
+    if (!field || !form) return;
+    const { workout, slot, variant } = form.dataset;
+    if (!draftRow(data(), workout, slot, variant)) ctx.uc.openDraft(workout, slot, variant); // card forms store the draft on first input
+    ctx.uc.editDraft(workout, slot, variant, field, ev.target.value);
   }],
   // Enter in the weight field moves on to reps instead of submitting half a set.
   ['keydown', ev => {
-    if (ev.key === 'Enter' && ev.target.dataset.draftField === 'weight') { ev.preventDefault(); ev.target.closest('.quick-set').querySelector('[data-draft-field="reps"]').focus(); }
+    if (ev.key === 'Enter' && ev.target.dataset.draftField === 'weight') { ev.preventDefault(); ev.target.closest(ENTRY).querySelector('[data-draft-field="reps"]').focus(); }
   }],
   ['submit', ev => {
     const form = ev.target;
-    if (!form.matches('.quick-set')) return;
+    if (!form.matches(ENTRY)) return;
     ev.preventDefault();
     const { workout, slot, variant } = form.dataset, value = name => form.querySelector(`[data-draft-field="${name}"]`).value;
     if (!applied(ctx.uc.saveSet(workout, slot, variant, { weight: value('weight'), reps: value('reps') }))) return;
