@@ -54,7 +54,7 @@ export async function finishWorkout(workoutId) {
     input?.focus({ preventScroll: true });
     return alert('Сохраните или удалите черновик подхода.');
   }
-  const s = workoutSummary(workout);
+  const s = workoutSummary(data(), workout);
   if (!await ds.confirm('Завершить тренировку?', `Завершено ${s.done} из ${s.total}, подходов: ${s.setCount}. Упражнения без подходов будут отмечены как пропущенные.`, { ok: 'Завершить' })) return;
   if (!applied(ctx.uc.finishWorkout(workoutId))) return;
   view.draft = null;

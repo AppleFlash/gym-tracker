@@ -1,10 +1,12 @@
 // Quick set entry: one inline row (weight, reps, save, cancel) for the open draft, and saved sets as tappable chips.
 // Typing is saved as a draft on every keystroke, so switching cards, screens or closing the app loses nothing.
-import { draftRow, setsOf } from '../domain/workout.js';
+import { draftRow, setsOf, loadFactor } from '../domain/workout.js';
 import { ctx, view, data, applied, rerender } from './context.js';
 import { esc, nice, helpButton } from './format.js';
 
 const refAttrs = (workout, slot, variantId) => `data-workout="${esc(workout.id)}" data-slot="${esc(slot.id)}" data-variant="${esc(variantId)}"`;
+// Dumbbell exercises take the weight of one dumbbell.
+export const dumbbellHint = variant => loadFactor(data(), variant?.weightId) === 2 ? '<p class="qs-hint">Укажите вес гантели</p>' : '';
 export const isOpen = (workout, slot, variantId) => view.draft?.workoutId === workout.id && view.draft.slotId === slot.id && view.draft.variantId === variantId;
 
 export function setChips(workout, slot, variantId) {
@@ -17,6 +19,7 @@ export function quickRow(workout, slot, variantId, completeAction = null) {
   return `<form class="quick-set ${completeAction ? 'with-complete' : ''}" ${refAttrs(workout, slot, variantId)}>
     <div class="qs-field"><label for="qs-weight">Вес, кг</label>${helpButton('weightHelp', 'Как вводить вес')}<input id="qs-weight" data-draft-field="weight" inputmode="decimal" autocomplete="off" enterkeyhint="next" value="${esc(row.weight)}" placeholder="0" aria-label="Вес подхода ${n}, кг"></div>
     <div class="qs-field"><label for="qs-reps">Повторы</label><input id="qs-reps" data-draft-field="reps" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${esc(row.reps)}" placeholder="8" aria-label="Повторения подхода ${n}"></div>
+    ${dumbbellHint(slot.variants.find(v => v.id === variantId))}
     <div class="qs-actions"><button type="submit" class="btn primary small">Сохранить</button>${completeAction ? `<button type="button" class="btn primary small" data-action="${completeAction}" data-id="${esc(slot.id)}" aria-label="Завершить упражнение">Завершить</button>` : ''}<button type="button" class="btn small" data-action="cancelSet">Отмена</button></div>
   </form>`;
 }
@@ -50,7 +53,7 @@ export const actions = {
     rerender();
   },
   editSet: ({ workout, slot, variant, set }) => { view.modal = { type: 'set', workoutId: workout, slotId: slot, variantId: variant, setId: set }; ctx.render(); },
-  weightHelp: () => ds.alert({ title: 'Как вводить вес', message: 'Вводите суммарный внешний вес: две гантели по 20 кг — это 40 кг. Для упражнений без отягощения укажите 0: повторы сохранятся, объём не изменится.', actions: [{ label: 'Понятно', value: true, style: 'default', cancel: true }] }),
+  weightHelp: () => ds.alert({ title: 'Как вводить вес', message: 'Для упражнений с оборудованием «Гантели» вводите вес одной гантели: в объёме он считается дважды. Для остальных — вес на снаряде или в тренажёре. Для упражнений без отягощения укажите 0: повторы сохранятся, объём не изменится.', actions: [{ label: 'Понятно', value: true, style: 'default', cancel: true }] }),
 };
 
 export const listeners = [

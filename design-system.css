@@ -307,6 +307,7 @@ dialog.ds-alert.closing::backdrop{animation:fade-out .16s ease forwards}
 .qs-field .help-btn{position:absolute;top:6px;right:8px;z-index:1;width:24px;height:24px}
 .qs-field input{width:100%;min-width:0;height:56px;padding:26px var(--control-inset) 6px;border:0;border-radius:8px;background:var(--surface);color:var(--label);font:600 16px/20px var(--font-num);font-variant-numeric:tabular-nums}
 .qs-field input::placeholder{color:var(--label3);font-weight:400}
+.qs-hint{grid-column:1/-1;margin:0;font-size:12px;line-height:14px;color:var(--label2)}
 .qs-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .qs-actions .btn{min-height:44px;padding:6px 8px;font-size:14px}
 .quick-set.with-complete .qs-actions{display:flex;flex-wrap:wrap}

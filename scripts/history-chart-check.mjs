@@ -28,7 +28,7 @@ const order = data.workouts.map(w => w.id);
 const points = historyChartPoints(data, 'Y', '2026-11-11');
 assert.deepEqual(points.map(p => p.id), ['legacy', 'earlier', 'a', 'loaded']);
 assert.deepEqual(points.map(p => p.weight), [10, 10, 10, 557.5]);
-assert.equal(points.at(-1).weight, workoutSummary(loaded).volume);
+assert.equal(points.at(-1).weight, workoutSummary(data, loaded).volume);
 assert.deepEqual(data.workouts.map(w => w.id), order);
 assert.deepEqual(historyChartPoints({ workouts: [] }, 'W', '2026-11-11'), []);
 assert.equal(historyChartPoints({ workouts: Array.from({ length: 120 }, (_, i) => workout('2026-11-11', String(i))) }, 'Y', '2026-11-11').length, 120);

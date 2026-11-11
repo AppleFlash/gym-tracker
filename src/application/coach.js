@@ -2,7 +2,7 @@
 import { EVIDENCE } from './evidence.js';
 import { DAYS, variantsOf } from '../domain/program.js';
 import { findItem } from '../domain/catalog.js';
-import { completedWorkouts, findWorkout, workoutSummary, performancesOf, representativeSet, volumeOf } from '../domain/workout.js';
+import { completedWorkouts, findWorkout, workoutSummary, performancesOf, representativeSet, volumeOf, loadFactor } from '../domain/workout.js';
 
 export const ROLE_RULES = `Ты — помощник по силовым тренировкам, кардио, питанию для тренировочных целей, сну и восстановлению.
 Не диагностируй болезни и травмы, не назначай лечение, препараты или медицинскую реабилитацию. При боли рекомендуй прекратить провоцирующее движение и оценку специалистом; не подбирай обход симптома. При признаках неотложной ситуации кратко рекомендуй срочную медицинскую помощь.
@@ -13,7 +13,7 @@ const RULES = ROLE_RULES + `
 Опирайся на конкретные занятия и показатели ниже; числа уже вычислены приложением. Не считай выборку полной историей; укажи предел данных, если запрошенный период недоступен.
 Учитывай только заданную цель, опыт, время, оборудование, предпочтения и ограничения. Не назначай набор массы по умолчанию. Если неизвестное существенно меняет ответ, задай один главный вопрос; иначе отвечай сразу. «Не знаю» про запас повторений допустимо.
 Проверяй каталожное упражнение, оборудование, порядок, число подходов и соглашение о весе. Неизвестные условия не считай одинаковыми. Не сравнивай килограммы разных упражнений как равную нагрузку и не переноси вес на альтернативу.
-В завершённых занятиях вес гантелей — сумма пары, не умножай его повторно. Только при использовании старого журнала каталога отмечай неопределённое соглашение старых записей; здесь журнал не передаётся.
+Для упражнений с perDumbbell: true вес в подходах — вес ОДНОЙ гантели; volume уже посчитан на пару, не умножай и не делись повторно. Для остальных вес — суммарная нагрузка на снаряде. Журнал каталога здесь не передаётся; соглашение о весе в нём не уточнено.
 Разделяй наблюдение, возможное объяснение и рекомендацию. Не выводи технику, сон, питание, усталость, запас повторений или причину результата из веса и повторений. Не объявляй застой только из-за одинакового веса.
 Предлагай минимальное обоснованное изменение с показателем наблюдения и условием пересмотра; без обещаний к дате. Продолжить работающую программу — полноценный вывод. Не назначай разгрузку по фиксированному числу занятий, обязательный отказ или одинаковый запас для всех. Продвинутую методику объясни вместе с ограничениями и применимостью.
 Ты не меняешь программу и историю. Постоянные сведения, прямо сообщённые пользователем, предлагай сохранить в профиль; гипотезы не сохраняй. План наблюдения предлагай договорённостью. Сохранение выполняет только пользователь кнопкой: до этого не пиши «учёл», «запомнил», «сохранил» и не спрашивай, предложить ли то, что уже есть в proposals. Учитывай активные договорённости; пересмотр предложи через replaces с объяснением новых данных или условий. Не закрывай договорённости сам.
@@ -21,11 +21,11 @@ const RULES = ROLE_RULES + `
 Научные утверждения ограничены проверенными карточками. Для спорного утверждения, новой методики или вопроса «Почему?» приведи поддерживающий источник из карточек. Не выдумывай авторов, DOI и ссылки; не утверждай, что искал последние исследования. При отсутствии релевантной карточки признай предел базы. При противоречиях обозначь неопределённость.
 `;
 
-const setStats = sets => ({ setCount: sets.length, totalReps: sets.reduce((n, s) => n + s.reps, 0), volume: volumeOf(sets), representative: representativeSet(sets) || null });
-function describeWorkout(w) {
-  const s = workoutSummary(w);
+const setStats = (sets, factor = 1) => ({ setCount: sets.length, totalReps: sets.reduce((n, s) => n + s.reps, 0), volume: volumeOf(sets, factor), representative: representativeSet(sets) || null });
+const describeWorkout = data => w => {
+  const s = workoutSummary(data, w);
   return { id: w.id, day: w.day, date: w.date, status: w.status, completedAt: w.completedAt, done: s.done, total: s.total, setCount: s.setCount, volume: s.volume,
-    exercises: s.exercises.map(e => ({ weightId: e.variant.weightId, name: e.variant.name, variantId: e.variant.id, instead: e.instead, position: w.slots.indexOf(e.slot) + 1, status: e.slot.status, sets: e.sets.map(({ weight, reps }) => ({ weight, reps })), ...setStats(e.sets) })),
+    exercises: s.exercises.map(e => ({ weightId: e.variant.weightId, name: e.variant.name, variantId: e.variant.id, instead: e.instead, position: w.slots.indexOf(e.slot) + 1, status: e.slot.status, sets: e.sets.map(({ weight, reps }) => ({ weight, reps })), perDumbbell: loadFactor(data, e.variant.weightId) === 2, ...setStats(e.sets, loadFactor(data, e.variant.weightId)) })),
     skipped: w.slots.filter(s => s.status === 'skipped').map(s => s.name) };
 }
 const bounds = (shown, all) => ({ shown: shown.length, totalCompleted: all.length, earliestAvailable: shown[0]?.date || null, description: `Последние ${shown.length} из ${all.length} завершённых; за пределами выборки данные не переданы.` });
@@ -42,14 +42,14 @@ function comparisons(workouts) {
 
 function agreementContext(data, context) {
   const workout = context?.kind === 'workout' && findWorkout(data, context.id);
-  const weightIds = new Set(workout ? workoutSummary(workout).exercises.map(e => e.variant.weightId) : []);
+  const weightIds = new Set(workout ? workoutSummary(data, workout).exercises.map(e => e.variant.weightId) : []);
   return data.agreements.filter(a => a.status === 'active' && (!context || a.scope.kind === 'program'
     || (context.kind === 'exercise' && a.scope.kind === 'exercise' && a.scope.weightId === context.weightId)
     || (workout && ((a.scope.kind === 'day' && a.scope.day === workout.day) || (a.scope.kind === 'exercise' && weightIds.has(a.scope.weightId))))))
     .map(a => {
       const runs = a.scope.kind === 'exercise' ? performancesOf(data, a.scope.weightId).filter(r => Date.parse(r.workout.completedAt) > Date.parse(a.acceptedAt)) : [];
-      const baselineStats = a.baseline ? setStats(a.baseline.sets) : null, latest = runs.at(-1);
-      return { ...a, baselineStats, ...(baselineStats && latest ? { baselineComparison: { fromWorkoutId: a.baseline.workoutId, toWorkoutId: latest.workout.id, totalRepsDelta: setStats(latest.sets).totalReps - baselineStats.totalReps, volumeDelta: volumeOf(latest.sets) - baselineStats.volume, fromSets: baselineStats.setCount, toSets: latest.sets.length, comparability: 'Нужно учитывать вариант, оборудование и порядок; равенство условий неизвестно.' } } : {}), ...(a.scope.kind === 'exercise' ? { completedRunsSinceAccepted: runs.length, reviewDue: a.review.afterRuns !== null && runs.length >= a.review.afterRuns, reviewState: a.review.afterRuns !== null && runs.length >= a.review.afterRuns ? 'Условие наступило' : 'Условие не наступило или не задано' } : {}) };
+      const baselineStats = a.baseline ? setStats(a.baseline.sets, loadFactor(data, a.scope.weightId)) : null, latest = runs.at(-1);
+      return { ...a, baselineStats, ...(baselineStats && latest ? { baselineComparison: { fromWorkoutId: a.baseline.workoutId, toWorkoutId: latest.workout.id, totalRepsDelta: setStats(latest.sets).totalReps - baselineStats.totalReps, volumeDelta: volumeOf(latest.sets, loadFactor(data, a.scope.weightId)) - baselineStats.volume, fromSets: baselineStats.setCount, toSets: latest.sets.length, comparability: 'Нужно учитывать вариант, оборудование и порядок; равенство условий неизвестно.' } } : {}), ...(a.scope.kind === 'exercise' ? { completedRunsSinceAccepted: runs.length, reviewDue: a.review.afterRuns !== null && runs.length >= a.review.afterRuns, reviewState: a.review.afterRuns !== null && runs.length >= a.review.afterRuns ? 'Условие наступило' : 'Условие не наступило или не задано' } : {}) };
     });
 }
 
@@ -69,7 +69,7 @@ export function coachPrompt(data, now, context = null) {
     selected = all.slice(-6);
     sample = { kind: 'chat', ...bounds(selected, all) };
   }
-  let workouts = selected.map(describeWorkout);
+  let workouts = selected.map(describeWorkout(data));
   if (context?.kind === 'exercise') workouts = workouts.map(w => ({ ...w, exercises: w.exercises.filter(e => e.weightId === context.weightId), skipped: [] }));
   const facts = { today: now.toISOString(), profile: { goal: data.profile.goal.trim() || 'не задана', context: data.profile.context, facts: data.profile.facts || [] }, sample, workouts, comparisons: comparisons(workouts), agreements: agreementContext(data, context),
     ...(!context ? { program: Object.entries(data.days).map(([day, slots]) => ({ day, slots: slots.map(s => ({ id: s.id, name: s.name, sets: s.sets, range: s.range, variants: variantsOf(s).map(v => ({ id: v.id, name: v.name, weightId: v.weightId })) })) })) } : {}) };

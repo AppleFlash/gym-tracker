@@ -14,7 +14,7 @@ export function historyChartPoints(data, period, today) {
   const lower = period === 'Y' ? '' : localDate(start);
   return completedWorkouts(data)
     // Old-format workouts have no recorded sets: no data is not 0 kg, so they stay off the chart.
-    .filter(w => w.date >= lower && w.date <= today && workoutSummary(w).setCount > 0)
+    .filter(w => w.date >= lower && w.date <= today && workoutSummary(data, w).setCount > 0)
     .sort((a, b) => a.date.localeCompare(b.date) || a.completedAt.localeCompare(b.completedAt) || a.id.localeCompare(b.id))
-    .map(w => ({ id: w.id, date: w.date, label: shortDate(w.date), weight: workoutSummary(w).volume }));
+    .map(w => ({ id: w.id, date: w.date, label: shortDate(w.date), weight: workoutSummary(data, w).volume }));
 }

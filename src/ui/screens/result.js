@@ -10,7 +10,7 @@ import { discuss } from './chat.js';
 export function resultPage(workoutId) {
   const workout = findWorkout(data(), workoutId);
   if (!workout || workout.status !== 'completed') return '<div class="empty">Тренировка не найдена.</div>';
-  const s = workoutSummary(workout), pct = s.total ? Math.round(s.done / s.total * 100) : 0;
+  const s = workoutSummary(data(), workout), pct = s.total ? Math.round(s.done / s.total * 100) : 0;
   const skipped = workout.slots.filter(slot => slot.status === 'skipped').map(slot => esc(slot.name));
   const legacyMarks = workout.slots.filter(slot => slot.legacyDone).map(slot => esc(slot.name));
   return `<h1>${dayTitle(workout.day)}</h1><p class="lede">${esc(longDate(workout.date))}</p>
@@ -26,7 +26,7 @@ export function resultPage(workoutId) {
 }
 
 export const actions = {
-  volumeHelp: () => ds.alert({ title: 'Объём с отягощением', message: 'Сумма «вес × повторения» по всем сохранённым подходам. Вес — суммарный внешний: две гантели по 20 кг — это 40 кг. Подходы с весом 0 в объём не входят.', actions: [{ label: 'Понятно', value: true, style: 'default', cancel: true }] }),
+  volumeHelp: () => ds.alert({ title: 'Объём с отягощением', message: 'Сумма «вес × повторения» по всем сохранённым подходам. Для упражнений с гантелями вес — одной гантели, в объёме считается дважды (2 × вес × повторы). Подходы с весом 0 в объём не входят.', actions: [{ label: 'Понятно', value: true, style: 'default', cancel: true }] }),
   toWorkouts: () => go('workouts'),
   discussWorkout: ({ id }) => {
     const workout = findWorkout(data(), id);
@@ -35,7 +35,7 @@ export const actions = {
 };
 
 export const historyRow = w => {
-  const s = workoutSummary(w);
+  const s = workoutSummary(data(), w);
   return `<button class="menu-row history-row" data-action="openResult" data-id="${esc(w.id)}"><span><strong>${dayTitle(w.day)}</strong><small>${esc(longDate(w.date))} · ${s.done} из ${plural(s.total, EXERCISES)}${s.setCount ? '' : ' · подходы не записаны'}</small></span><span aria-hidden="true">›</span></button>`;
 };
 actions.openResult = ({ id }) => { view.resultFrom = 'profile'; go('result', id); };

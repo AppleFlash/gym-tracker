@@ -66,7 +66,7 @@ function templateCard(day, slot) {
 
 function weightNotice() {
   if (data().profile.weightNoticeSeen) return '';
-  return `<section class="card notice"><p>Вес вводите суммарно: две гантели по 20 кг — это 40 кг. Старые записи не пересчитаны — если там вес одной гантели, исправьте их вручную.</p><button class="btn small" data-action="dismissWeightNotice">Понятно</button></section>`;
+  return `<section class="card notice"><p>Для упражнений с оборудованием «Гантели» вводите вес одной гантели — объём считается на пару. Укажите оборудование в карточке упражнения.</p><button class="btn small" data-action="dismissWeightNotice">Понятно</button></section>`;
 }
 
 export function workoutPage(day) {

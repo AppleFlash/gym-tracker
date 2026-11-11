@@ -73,7 +73,7 @@ function dropDraftRow(data, workoutId, slotId, variantId) {
 export const cancelDraft = (data, workoutId, slotId, variantId) => draftRow(data, workoutId, slotId, variantId) ? dropDraftRow(data, workoutId, slotId, variantId) : false;
 
 /* ---------- Sets ---------- */
-// Weight is the total external load (two 20 kg dumbbells = 40). Comma or dot as decimal separator.
+// Weight as shown on the equipment: one dumbbell for dumbbell exercises, total load otherwise. Comma or dot as decimal separator.
 export function parseSet(input) {
   const rawWeight = String(input.weight ?? '').trim(), rawReps = String(input.reps ?? '').trim();
   const weight = Number(rawWeight.replace(',', '.')), reps = Number(rawReps);
@@ -208,16 +208,18 @@ export function removeFromActive(data, day, slotId, variantId = null) {
 }
 
 /* ---------- Statistics: always computed from saved sets of workouts ---------- */
-export const volumeOf = sets => sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
+// Dumbbell exercises (catalog equipment «Гантели»): the entered weight is ONE dumbbell, the load is the pair.
+export const loadFactor = (data, weightId) => weightId && data.groups.some(g => g.items.some(i => i.id === weightId && i.equipment === 'dumbbells')) ? 2 : 1;
+export const volumeOf = (sets, factor = 1) => factor * sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
 
 // One set stands for a run: the heaviest; on equal weight the most reps; on a full tie the first.
 export const representativeSet = sets => sets.reduce((best, s) => !best || s.weight > best.weight || (s.weight === best.weight && s.reps > best.reps) ? s : best, null);
 
-export function workoutSummary(workout) {
+export function workoutSummary(data, workout) {
   const exercises = workout.slots.flatMap(slot => slot.variants.filter(v => setsOf(slot, v.id).length)
     .map(v => ({ slot, variant: v, sets: setsOf(slot, v.id), instead: v.id !== slot.id ? mainVariant(slot).name : null })));
   const sets = workoutSets(workout);
-  return { done: workout.slots.filter(s => s.status === 'done').length, total: workout.slots.length, setCount: sets.length, volume: volumeOf(sets), exercises };
+  return { done: workout.slots.filter(s => s.status === 'done').length, total: workout.slots.length, setCount: sets.length, volume: exercises.reduce((sum, e) => sum + volumeOf(e.sets, loadFactor(data, e.variant.weightId)), 0), exercises };
 }
 
 // Completed runs of one catalog exercise across all templates, oldest first. One entry per workout.

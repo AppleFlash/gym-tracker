@@ -1,6 +1,7 @@
 // Edit a saved workout set or a legacy journal record.
 import { groupItem } from '../../domain/catalog.js';
 import { findWorkout, findSlot, setsOf } from '../../domain/workout.js';
+import { dumbbellHint } from '../sets.js';
 import { ctx, view, data, applied, rerender } from '../context.js';
 import { esc, helpButton } from '../format.js';
 import { discardForm } from './catalog.js';
@@ -20,7 +21,7 @@ export function editSheetHtml() {
     removable = !!s;
     body = `<div class="field wide"><strong>${esc(variant?.name || '')}</strong></div>`
       + `<label class="field">Вес, кг ${helpButton('weightHelp', 'Как вводить вес')}<input name="weight" value="${esc(s?.weight ?? '')}" inputmode="decimal" autocomplete="off"></label>`
-      + field('reps', 'Повторы', s?.reps ?? '', 'text', false, 'inputmode="numeric" pattern="[0-9]*"');
+      + field('reps', 'Повторы', s?.reps ?? '', 'text', false, 'inputmode="numeric" pattern="[0-9]*"') + dumbbellHint(variant);
   }
   if (m.type === 'record') {
     const r = recordOf(m);
