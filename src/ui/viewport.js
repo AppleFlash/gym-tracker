@@ -5,11 +5,16 @@ export function syncViewport() {
   const root = document.documentElement, height = window.visualViewport?.height || innerHeight;
   root.classList.toggle('standalone', navigator.standalone === true || matchMedia('(display-mode: standalone)').matches);
   viewport.max = Math.max(viewport.max, height);
-  const editing = document.activeElement?.matches('input,textarea,select'), keyboard = !!editing && viewport.max - height > 120;
+  const focused = document.activeElement, editing = focused?.matches('input,textarea,select');
+  const keyboard = (editing || document.body.classList.contains('kb')) && viewport.max - height > 120 && (window.visualViewport?.scale || 1) === 1;
   document.body.classList.toggle('kb', keyboard);
   if (keyboard) root.style.setProperty('--keyboard-height', height + 'px');
   else root.style.removeProperty('--keyboard-height');
   if (scrollY) scrollTo(0, 0);
+  if (keyboard && editing) requestAnimationFrame(() => {
+    if (focused === document.activeElement) focused.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+    if (scrollY) scrollTo(0, 0);
+  });
 }
 
 export function watchViewport() {

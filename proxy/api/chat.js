@@ -40,3 +40,8 @@ export async function POST(req) {
   return new Response(res.body, { status: res.status, headers: { ...cors(origin), 'Content-Type': 'application/json' } });
 }
 
+
+// Plain reachability check from a browser.
+export function GET() {
+  return new Response("proxy ok", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+}

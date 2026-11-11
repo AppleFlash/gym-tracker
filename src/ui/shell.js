@@ -32,7 +32,6 @@ function tabBarHtml() {
 }
 
 function navAction(r) {
-  if (r.tab === 'exercises') return '<button class="nav-action" data-action="openCatalog" aria-label="Изменить базу упражнений">База</button>';
   if (!DAYS.includes(r.tab)) return '';
   const workout = activeWorkoutOf(data(), r.tab);
   if (r.id) return '';
@@ -42,7 +41,7 @@ function navAction(r) {
 
 function navBarHtml(r) {
   const p = parentRoute(r);
-  const back = p ? `<button class="nav-back" data-action="workoutBack" aria-label="Назад: ${esc(routeTitle(p))}">${chevron}<span>${esc(routeTitle(p))}</span></button>` : '';
+  const back = p ? `<button class="nav-back" data-action="workoutBack" aria-label="Назад: ${esc(routeTitle(p))}">${chevron}<span>Назад</span></button>` : '';
   return `<div class="navbar"><div class="navbar-bar"><div class="nav-side">${back}</div><div class="nav-title">${r.tab === 'chat' ? 'Чат' : ''}</div><div class="nav-side end">${navAction(r)}</div></div></div>`;
 }
 

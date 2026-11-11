@@ -5,7 +5,6 @@ import { ctx, view, data, applied } from '../context.js';
 import { esc, shortDate, longDate, setText, plural } from '../format.js';
 import { go } from '../router.js';
 import { historyChartPage } from './history.js';
-import { openCatalog } from '../sheets/catalog.js';
 import { catalogBrowser } from '../catalog-list.js';
 
 const EXERCISES_WITH_HISTORY = ['упражнение', 'упражнения', 'упражнений'];
@@ -61,7 +60,6 @@ function download(text, name) {
 
 export const actions = {
   removeCoachFact: ({ id }) => { if (applied(ctx.uc.removeFact(id))) ctx.render(); },
-  openCatalog: () => openCatalog(),
   export: () => {
     const text = ctx.uc.exportBackup();
     if (!text) return alert('Не удалось сохранить дату экспорта. Освободите место и попробуйте снова.');

@@ -83,7 +83,7 @@ export function workoutPage(day) {
     ? `<button class="btn primary block" data-action="openWorkout" data-day="${other.day}">Продолжить тренировку ${dayLetter(other.day)}</button><p class="note">Новую тренировку можно начать после завершения текущей.</p>`
     : `<button class="btn primary block" data-action="startWorkout" data-day="${day}" ${template.length ? '' : 'disabled'}>Начать тренировку</button>`;
   return `<h1>${dayTitle(day)}</h1><p class="lede">${plural(template.length, EXERCISES)} · ${last ? 'последняя ' + esc(shortDate(last.date)) : 'ещё не выполнялась'}</p>
-    ${start}
+    <div class="workout-start">${start}</div>
     <section class="exercise-list wk-list" aria-label="Упражнения программы">${template.map(slot => templateCard(day, slot)).join('') || '<div class="empty">Пока нет упражнений. Добавьте первое кнопкой «+».</div>'}</section>`;
 }
 
