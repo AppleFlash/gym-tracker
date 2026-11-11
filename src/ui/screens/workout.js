@@ -52,6 +52,7 @@ export function exerciseMenuHtml() {
     ${chosen.weightId ? `<button class="menu-row" data-action="openTechnique" data-id="${esc(chosen.weightId)}">Техника</button>` : ''}
     ${slotSetsCount(slot) || status === 'done' || isOpen(workout, slot, chosen.id) ? action('openVariants', 'Альтернативы') : ''}
     ${status === 'skipped' ? action('toggleSkip', 'Вернуть упражнение') : status !== 'done' && !slotSetsCount(slot) ? action('toggleSkip', 'Пропустить') : ''}
+    ${slotSetsCount(slot) ? '' : action('removeExercise', 'Удалить из тренировки').replace('class="menu-row"', 'class="menu-row destructive"')}
   </div><button class="menu-row action-sheet-cancel" data-action="close">Отмена</button></section></dialog>`;
 }
 
@@ -109,6 +110,11 @@ export const actions = {
     if (workout && applied(ctx.uc.completeSlot(workout.id, id))) { view.modal = null; if (view.draft?.slotId === id) view.draft = null; rerender(); }
   },
   toggleSkip: ({ id }) => { const workout = activeFor(id); if (workout && applied(ctx.uc.toggleSkip(workout.id, id))) { view.modal = null; rerender(); } },
+  removeExercise: async ({ day, id }) => {
+    const slot = findSlot(activeWorkoutOf(data(), day), id);
+    if (!slot || !await ds.confirm('Удалить упражнение?', 'Оно пропадёт из этой тренировки и из программы. В базе упражнение и его история останутся.', { ok: 'Удалить', destructive: true })) return;
+    if (applied(ctx.uc.removeFromProgram(day, id))) { view.modal = null; if (view.draft?.slotId === id) view.draft = null; rerender(); }
+  },
   dismissWeightNotice: () => { if (applied(ctx.uc.dismissWeightNotice())) rerender(); },
   workoutMenu: async ({ id }) => {
     const choice = await ds.alert({ title: 'Занятие', actions: [{ label: 'Удалить занятие', value: 'delete', style: 'destructive' }, { label: 'Отмена', value: null, cancel: true }] });

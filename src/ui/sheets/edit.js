@@ -20,8 +20,8 @@ export function editSheetHtml() {
     title = 'Подход';
     removable = !!s;
     body = `<div class="field wide"><strong>${esc(variant?.name || '')}</strong></div>`
-      + `<label class="field">Вес, кг ${helpButton('weightHelp', 'Как вводить вес')}<input name="weight" value="${esc(s?.weight ?? '')}" inputmode="decimal" autocomplete="off"></label>`
-      + field('reps', 'Повторы', s?.reps ?? '', 'text', false, 'inputmode="numeric" pattern="[0-9]*"') + dumbbellHint(variant);
+      + `<div class="qs-grid"><div class="qs-field"><label for="ed-weight">Вес, кг</label>${helpButton('weightHelp', 'Как вводить вес')}<input id="ed-weight" name="weight" value="${esc(s?.weight ?? '')}" inputmode="decimal" autocomplete="off"></div>`
+      + `<div class="qs-field"><label for="ed-reps">Повторы</label><input id="ed-reps" name="reps" value="${esc(s?.reps ?? '')}" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></div>${dumbbellHint(variant)}</div>`;
   }
   if (m.type === 'record') {
     const r = recordOf(m);
