@@ -1,12 +1,11 @@
 // Workout time analytics, derived from raw stamps only (seconds since epoch):
 //   set.t   — the moment the set was added (workout and exercise start = the earliest set.t),
 //   slot.t1 — the moment the exercise was finished; workout end = completedAt.
-// Rest never depends on the "finish exercise" tap: it is measured between set stamps only. Old data without stamps → null.
+// Pauses never depend on the "finish exercise" tap: they are measured between set stamps only. Old data without stamps → null.
+// A stamp is made when the set is added, so the time to the next stamp holds that next set as well as the rest. The two
+// cannot be told apart and are not guessed: every pause here is measured time between stamps.
 import { slotSets } from './workout.js';
 
-// Calibration knobs. A set is logged after it ends, so the time to the next stamp holds that next set's execution
-// besides the rest; the execution is estimated as reps × SECONDS_PER_REP and subtracted. Rest values are estimates.
-export const SECONDS_PER_REP = 4;
 export const LONG_PAUSE = 1.5; // a pause is long above this multiple of the workout's median pause of its kind
 
 const sum = list => list.reduce((a, b) => a + b, 0);
@@ -15,11 +14,10 @@ const median = list => { const s = [...list].sort((a, b) => a - b), m = s.length
 const normOf = list => list.length < 3 ? null : median(list);
 // Seconds above the norm over all long pauses.
 const excess = list => { const m = normOf(list); return m === null ? 0 : sum(list.filter(v => v > LONG_PAUSE * m).map(v => v - m)); };
-const minusSet = (seconds, reps) => Math.max(0, seconds - reps * SECONDS_PER_REP);
 
 // nowSec ends an active workout; without it an active workout ends at its latest exercise end.
-// Per exercise: dur (first set → finish tap), iv (raw seconds between consecutive sets), rest (iv without the next set's
-// execution), gap (last set of the previous exercise → first set of this one, without its execution; 0 for the first).
+// Per exercise: dur (first set → finish tap), rest (seconds from each set stamp to the next one), gap (seconds from the last
+// set stamp of the previous exercise to the first one of this exercise; 0 for the first exercise).
 // sets: the stamped sets of the exercise in time order (all its variants).
 // norm.rest / norm.move: the usual pause of this workout; a pause is long when above LONG_PAUSE × its norm.
 export function timing(workout, nowSec = null) {
@@ -28,12 +26,11 @@ export function timing(workout, nowSec = null) {
     const sets = slotSets(slot).filter(s => Number.isFinite(s.t)).sort((a, b) => a.t - b.t);
     if (!sets.length) return [];
     const last = sets.at(-1).t, t1 = Math.max(slot.t1 ?? last, last); // never before the last set, whatever the clock did
-    const pairs = sets.slice(1).map((s, i) => [s.t - sets[i].t, s.reps]);
-    return [{ slotId: slot.id, sets, t0: sets[0].t, last, t1, dur: t1 - sets[0].t, first: sets[0].reps, iv: pairs.map(p => p[0]), rest: pairs.map(p => minusSet(...p)) }];
+    return [{ slotId: slot.id, sets, t0: sets[0].t, last, t1, dur: t1 - sets[0].t, rest: sets.slice(1).map((s, i) => s.t - sets[i].t) }];
   }).sort((a, b) => a.t0 - b.t0);
   if (!ex.length) return null;
   let reach = null; // ponytail: overlapping exercises (supersets) get gap 0 and are not merged; union them if they ever matter
-  for (const e of ex) { e.gap = reach === null ? 0 : minusSet(Math.max(0, e.t0 - reach), e.first); reach = Math.max(reach ?? 0, e.last); }
+  for (const e of ex) { e.gap = reach === null ? 0 : Math.max(0, e.t0 - reach); reach = Math.max(reach ?? 0, e.last); }
   const rests = ex.flatMap(e => e.rest), moves = ex.slice(1).map(e => e.gap), t0 = ex[0].t0, t1 = Math.max(done ?? 0, ...ex.map(e => e.t1));
   return { t0, t1, dur: t1 - t0, rest: sum(rests), move: sum(moves), over: Math.round(excess(rests) + excess(moves)), norm: { rest: normOf(rests), move: normOf(moves) }, ex };
 }

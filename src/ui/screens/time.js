@@ -1,7 +1,7 @@
 // Time of one finished workout: how much rest was longer than usual, where, and what the usual rest is.
 // Everything is derived from set stamps by domain/timing.js; this screen only arranges it.
 import { findWorkout } from '../../domain/workout.js';
-import { timing, pausesOf, SECONDS_PER_REP } from '../../domain/timing.js';
+import { timing, pausesOf } from '../../domain/timing.js';
 import { data } from '../context.js';
 import { esc, nice, minSec, timeLabel, plural } from '../format.js';
 import { go } from '../router.js';
@@ -10,7 +10,7 @@ import { setChain } from '../components/set-chain.js';
 import { pauseBar } from '../components/pause-bar.js';
 import { valueRow } from '../components/value-row.js';
 
-const LEGEND = [['set', 'подход'], ['ok', 'отдых'], ['long', 'дольше обычного']];
+const LEGEND = [['ok', 'как обычно'], ['long', 'дольше обычного']];
 const longest = list => list.reduce((a, b) => (b.sec > a.sec ? b : a), list[0]);
 
 export function timePage(workoutId) {
@@ -28,14 +28,12 @@ export function timePage(workoutId) {
   tm.ex.forEach((e, ei) => e.sets.forEach((s, si) => {
     const p = at(ei, si);
     if (p) segments.push(p.long ? { kind: 'long', sec: p.sec, pause: p.k, label: `Долгая пауза ${minSec(p.sec)}, показать` } : { kind: 'ok', sec: p.sec });
-    if (p || ei > 0 || si > 0) segments.push({ kind: 'set', sec: s.reps * SECONDS_PER_REP }); // the first set of the workout happened before its own stamp
   }));
   const tail = tm.t1 - tm.ex.at(-1).last;
   if (tail > 0) segments.push({ kind: 'tail', sec: tail });
 
-  const minutes = Math.max(1, Math.round(tm.dur / 60)), moveScale = moves.length ? Math.ceil(longest(moves).sec / 60) * 60 : 60;
-  const avgReps = tm.ex.flatMap(e => e.sets).reduce((n, s, _, all) => n + s.reps / all.length, 0);
-  const meta = e => e.rest.length > 1 ? `в среднем <span class="num">${minSec(e.rest.reduce((a, b) => a + b, 0) / e.rest.length)}</span>` : e.rest.length ? `отдых <span class="num">${minSec(e.rest[0])}</span>` : '';
+  const minutes = Math.max(1, Math.round(tm.dur / 60)), moveScale = Math.max(60, moves.length ? Math.ceil(longest(moves).sec / 60) * 60 : 0);
+  const meta = e => e.rest.length > 1 ? `в среднем <span class="num">${minSec(e.rest.reduce((a, b) => a + b, 0) / e.rest.length)}</span>` : e.rest.length ? `<span class="num">${minSec(e.rest[0])}</span>` : '';
 
   const flow = tm.ex.map((e, ei) => {
     const move = ei > 0 ? at(ei, 0) : null;
@@ -44,9 +42,8 @@ export function timePage(workoutId) {
   }).join('');
 
   const usual = [
-    tm.norm.rest !== null ? valueRow({ title: 'Отдых между подходами', hint: `дольше всего ${minSec(longest(rests).sec)}`, value: minSec(tm.norm.rest) }) : '',
-    tm.norm.move !== null ? valueRow({ title: 'Пауза между упражнениями', hint: `дольше всего ${minSec(longest(moves).sec)}`, value: minSec(tm.norm.move) }) : '',
-    valueRow({ title: 'Один подход', hint: 'оценка по повторам', value: '≈ ' + minSec(avgReps * SECONDS_PER_REP) }),
+    tm.norm.rest !== null ? valueRow({ title: 'Между подходами', hint: `дольше всего ${minSec(longest(rests).sec)}`, value: minSec(tm.norm.rest) }) : '',
+    tm.norm.move !== null ? valueRow({ title: 'Между упражнениями', hint: `дольше всего ${minSec(longest(moves).sec)}`, value: minSec(tm.norm.move) }) : '',
   ].join('');
 
   return `<h1>Время</h1>
