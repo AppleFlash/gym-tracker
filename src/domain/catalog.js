@@ -71,6 +71,13 @@ export function saveTechnique(data, id, input, now) {
   item.technique = technique;
 }
 
+export function saveNote(data, id, note) {
+  const item = findItem(data, id);
+  if (!item) return false;
+  try { validateItemFields({ ...item, note }); } catch (e) { fail(e.message); }
+  item.note = note;
+}
+
 export const catalogItems = data => data.groups.flatMap(g => g.items);
 export const findItem = (data, id) => catalogItems(data).find(x => x.id === id);
 export const findGroup = (data, id) => data.groups.find(g => g.id === id);

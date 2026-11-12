@@ -29,7 +29,8 @@ export function catalogBrowser(scope) {
     <div class="form-grid catalog-filters"><label class="field">Группа мышц<select data-cat-filter="group" ${lockedGroup ? 'disabled' : ''}>${lockedGroup ? groupOptions(lockedGroup, lockedGroup) : '<option value="">Все группы</option>' + groupOptions(s.group)}</select></label><label class="field">Оборудование<select data-cat-filter="equipment">${equipmentOptions(s.equipment, true)}</select></label></div>
     ${s.group || s.equipment || s.mode !== 'all' ? `<button class="btn small" data-action="catalogReset" data-scope="${scope}">Сбросить фильтры</button>` : ''}
     <div class="catalog-results">${catalogRows(scope)}</div>
-    <div class="catalog-tools"><button class="btn block" data-action="catalogNewExercise" data-scope="${scope}">${s.query.trim() ? `Создать «${esc(s.query.trim())}»` : '+ Упражнение'}</button>${!target?.day ? '<button class="btn small" data-action="catalogNewGroup">+ Группа мышц</button>' : ''}${s.group ? `<button class="btn small" data-action="catalogDeleteGroup" data-group="${esc(s.group)}">Удалить пустую группу</button>` : ''}</div></div>`;
+    <div class="catalog-tools">${!target?.day ? '<button class="btn small" data-action="catalogNewGroup">+ Группа мышц</button>' : ''}${s.group ? `<button class="btn small" data-action="catalogDeleteGroup" data-group="${esc(s.group)}">Удалить пустую группу</button>` : ''}</div>
+    <div class="catalog-dock"><button class="btn block" data-action="catalogNewExercise" data-scope="${scope}">${s.query.trim() ? `Создать «${esc(s.query.trim())}»` : '+ Упражнение'}</button></div></div>`;
 }
 
 const scopeOf = el => el.closest('[data-catalog-scope]')?.dataset.catalogScope;

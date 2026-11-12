@@ -20,8 +20,9 @@ import * as segments from './components/segment-progress.js';
 import * as exerciseCard from './components/exercise-card.js';
 import * as sortable from './components/sortable-list.js';
 import * as order from './sheets/order.js';
+import * as note from './sheets/note.js';
 
-const features = [home, workout, exercise, result, chat, profile, history, sets, catalog, catalogList, catalogAi, variants, edit, carousel, segments, exerciseCard, sortable, order];
+const features = [home, workout, exercise, result, chat, profile, history, sets, catalog, catalogList, catalogAi, variants, edit, carousel, segments, exerciseCard, sortable, order, note];
 
 const shellActions = {
   tab: ({ id }) => go(id === 'day' ? 'workouts' : id),

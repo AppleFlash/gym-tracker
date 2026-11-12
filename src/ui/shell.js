@@ -16,6 +16,7 @@ import { variantsHtml } from './sheets/variants.js';
 import { techniqueHtml, alternativeHtml } from './sheets/catalog-ai.js';
 import { editSheetHtml } from './sheets/edit.js';
 import { orderHtml } from './sheets/order.js';
+import { noteHtml } from './sheets/note.js';
 import { restoreCarousel } from './components/carousel.js';
 
 const TABS = [
@@ -62,7 +63,7 @@ function pageHtml({ tab, id }) {
 // Full screen markup for any route; also used for the swipe-back preview of the parent screen.
 export const screenHtml = r => navBarHtml(r) + `<div class="screen-body">${pageHtml(r)}</div>`;
 
-const SHEETS = { agreements: agreementsHtml, catalog: catalogHtml, variants: variantsHtml, technique: techniqueHtml, 'alternative-ai': alternativeHtml, 'exercise-menu': exerciseMenuHtml, 'exercise-order': orderHtml };
+const SHEETS = { agreements: agreementsHtml, catalog: catalogHtml, variants: variantsHtml, technique: techniqueHtml, 'alternative-ai': alternativeHtml, 'exercise-menu': exerciseMenuHtml, 'exercise-order': orderHtml, note: noteHtml };
 const sheetHtml = () => !view.modal ? '' : (SHEETS[view.modal.type] || editSheetHtml)();
 
 export function render() {

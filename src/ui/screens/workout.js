@@ -1,6 +1,7 @@
 // Workout screen: progress segments and a carousel with one card per exercise (see ui/components).
 // During a workout the cards take sets; before it they preview the program of the day and the dock starts the workout.
 import { slotOf } from '../../domain/program.js';
+import { findItem } from '../../domain/catalog.js';
 import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutProgress, workoutSummary, lastPerformance, lastCompleted, draftRow, prefill, volumeOf, loadFactor } from '../../domain/workout.js';
 import { ctx, view, data, applied, rerender } from '../context.js';
 import { esc, nice, kg, dayTitle, dayLetter, shortDate, setsText, plural, EXERCISES } from '../format.js';
@@ -36,7 +37,7 @@ export function slotCard(workout, slot, detail = false) {
   const row = draftRow(data(), workout.id, slot.id, chosen.id) || prefill(data(), workout, slot, chosen.id);
   const planned = chosen.sets ?? main.sets;
   return exerciseCard({
-    id: slot.id, state, title: chosen.name, replaced: chosen.id !== main.id ? main.name : '', previous: lastTimeText(chosen.weightId, workout.id),
+    id: slot.id, weightId: chosen.weightId, hasNote: !!findItem(data(), chosen.weightId)?.note, state, title: chosen.name, replaced: chosen.id !== main.id ? main.name : '', previous: lastTimeText(chosen.weightId, workout.id),
     lifted: kg(slot.variants.reduce((sum, v) => sum + volumeOf(setsOf(slot, v.id), loadFactor(data(), v.weightId)), 0)), // dumbbells count as a pair
     open: detail ? '' : `data-day="${workout.day}" data-id="${id}"`, menu: `data-action="exerciseMenu" data-day="${workout.day}" data-id="${id}"`,
     expanded: openCards.has(slot.id), flat: detail, sets,
@@ -61,7 +62,7 @@ export function exerciseMenuHtml() {
 // Before the workout starts: a card of the program, without sets. Tap opens the exercise; the menu edits the program.
 function previewCard(day, slot) {
   const id = esc(slot.id);
-  return exerciseCard({ id: slot.id, state: 'active', title: slot.name, replaced: '', previous: lastTimeText(slot.weightId),
+  return exerciseCard({ id: slot.id, weightId: slot.weightId, hasNote: !!findItem(data(), slot.weightId)?.note, state: 'active', title: slot.name, replaced: '', previous: lastTimeText(slot.weightId),
     open: `data-day="${day}" data-id="${id}"`, menu: `data-action="exerciseMenu" data-day="${day}" data-id="${id}"`, expanded: false, entry: '', sets: [] });
 }
 

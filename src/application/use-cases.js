@@ -57,6 +57,7 @@ export function createUseCases({ store, clock = () => new Date(), coach }) {
     }),
     toggleFavorite: id => run(d => { const item = catalog.findItem(d, id); if (!item) return false; item.favorite = !item.favorite; }),
     archiveItem: (id, archived) => run(d => catalog.archiveItem(d, id, archived)),
+    saveNote: (id, note) => run(d => catalog.saveNote(d, id, note)),
     saveTechnique: (id, input) => run(d => catalog.saveTechnique(d, id, input, clock())),
     suggestAlternatives: (day, slotId, input) => requestAlternatives(coach, structuredClone(store.state), day, slotId, input),
     generateTechnique: (id, input) => {
