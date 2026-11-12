@@ -21,6 +21,8 @@ export const plural = (n, [one, few, many]) => {
 };
 export const EXERCISES = ['упражнение', 'упражнения', 'упражнений'];
 export const SETS = ['подход', 'подхода', 'подходов'];
+// Duration for pauses and rests: 2:05 (minutes:seconds).
+export const minSec = s => { s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
 export const chevron = '<svg viewBox="0 0 12 20" aria-hidden="true"><path d="M10 2 2 10l8 8"/></svg>';
 export const plusIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';

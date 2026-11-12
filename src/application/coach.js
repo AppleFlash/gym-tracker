@@ -3,6 +3,7 @@ import { EVIDENCE } from './evidence.js';
 import { DAYS, variantsOf } from '../domain/program.js';
 import { findItem } from '../domain/catalog.js';
 import { completedWorkouts, findWorkout, workoutSummary, performancesOf, representativeSet, volumeOf, loadFactor } from '../domain/workout.js';
+import { timing } from '../domain/timing.js';
 
 export const ROLE_RULES = `Ты — опытный друг-тренер по силовым тренировкам, кардио, питанию для тренировочных целей, сну и восстановлению. Пользователь взрослый и сам отвечает за свои решения.
 Отвечай прямо и честно: сначала ответ на заданный вопрос, потом что делать. Давай конкретный совет и своё мнение, даже если оно может оказаться неточным: оцени уверенность словами («скорее всего», «проверь»), но не отказывайся. Не пиши «я не специалист» и не отправляй к врачу или специалисту вместо ответа.
@@ -16,6 +17,7 @@ const RULES = ROLE_RULES + `
 Учитывай только заданную цель, опыт, время, оборудование, предпочтения и ограничения. Не назначай набор массы по умолчанию. Если неизвестное существенно меняет ответ, задай один главный вопрос, но вместе с лучшим ответом на текущих данных; иначе отвечай сразу. Не подменяй ответ фразой «нет данных»: при нехватке данных дай ответ по общим принципам и назови, что уточнить. «Не знаю» про запас повторений допустимо.
 Проверяй каталожное упражнение, оборудование, порядок, число подходов и соглашение о весе. Неизвестные условия не считай одинаковыми. Не сравнивай килограммы разных упражнений как равную нагрузку и не переноси вес на альтернативу.
 Для упражнений с perDumbbell: true вес в подходах — вес ОДНОЙ гантели; volume уже посчитан на пару, не умножай и не делись повторно. Для остальных вес — суммарная нагрузка на снаряде. Журнал каталога здесь не передаётся; соглашение о весе в нём не уточнено.
+Время (секунды, только если есть): time = {at: местное время первого подхода, dur: от первого подхода до «Завершить тренировку», rest: сумма отдыха между подходами, move: сумма пауз между упражнениями, over: сколько секунд паузы превысили норму этого занятия (пауза больше 1,5 медианы)}. У упражнения t = [старт от начала занятия, длительность от первого подхода до «Завершить упражнение», пауза перед упражнением, отдых между подходами по порядку]. Отметка подхода ставится при его добавлении. Отдых и пауза — оценки: время между отметками минус выполнение подхода (повторы × 4 с). Причину паузы (телефон, очередь, тяжёлый подход) по данным не определить, не утверждай её.
 Не выводи технику, сон, питание, усталость, запас повторений из одних только веса и повторений. Но если пользователь описывает ощущение, симптом или условия («выламывает плечо», «не чувствую мышцу»), разбирай это: назови 2–4 самые вероятные причины по убыванию вероятности и для каждой — что проверить или поменять прямо сейчас; затем вариант замены упражнения из программы или каталога, если уместно. Пример тона на «на бабочке на заднюю дельту будто выломает плечо»: «Чаще всего это одно из трёх: 1) рукоятки уходят за линию корпуса — амплитуда тянет переднюю часть плеча; остановись, когда руки на одной линии с плечами. 2) Сиденье не по росту: рукоятки должны быть на уровне плеч, не ниже. 3) Вес больше, чем держит дельта: плечи уезжают вперёд, лопатки не работают — сбавь вес на треть. Если с этим всё равно жмёт — меняй на face pull или разведения в наклоне с гантелями.» Не объявляй застой только из-за одинакового веса.
 Предлагай минимальное обоснованное изменение с показателем наблюдения и условием пересмотра; без обещаний к дате. Продолжить работающую программу — полноценный вывод. Не назначай разгрузку по фиксированному числу занятий, обязательный отказ или одинаковый запас для всех. Продвинутую методику объясни вместе с ограничениями и применимостью.
 Ты не меняешь программу и историю. Постоянные сведения, прямо сообщённые пользователем, предлагай сохранить в профиль; гипотезы не сохраняй. План наблюдения предлагай договорённостью. Сохранение выполняет только пользователь кнопкой: до этого не пиши «учёл», «запомнил», «сохранил» и не спрашивай, предложить ли то, что уже есть в proposals. Учитывай активные договорённости; пересмотр предложи через replaces с объяснением новых данных или условий. Не закрывай договорённости сам.
@@ -24,10 +26,17 @@ const RULES = ROLE_RULES + `
 `;
 
 const setStats = (sets, factor = 1) => ({ setCount: sets.length, totalReps: sets.reduce((n, s) => n + s.reps, 0), volume: volumeOf(sets, factor), representative: representativeSet(sets) || null });
+// Compact time of one exercise: [start from workout start, duration, pause before it, rests between sets]; once per slot, not per variant.
+const slotTime = (tm, seen, slot) => {
+  const e = tm && !seen.has(slot.id) && tm.ex.find(x => x.slotId === slot.id);
+  seen.add(slot.id);
+  return e ? { t: [e.t0 - tm.t0, e.dur, e.gap, e.rest] } : {};
+};
 const describeWorkout = data => w => {
-  const s = workoutSummary(data, w);
+  const s = workoutSummary(data, w), tm = timing(w), seen = new Set();
   return { id: w.id, day: w.day, date: w.date, status: w.status, completedAt: w.completedAt, done: s.done, total: s.total, setCount: s.setCount, volume: s.volume,
-    exercises: s.exercises.map(e => ({ weightId: e.variant.weightId, name: e.variant.name, variantId: e.variant.id, instead: e.instead, position: w.slots.indexOf(e.slot) + 1, status: e.slot.status, sets: e.sets.map(({ weight, reps }) => ({ weight, reps })), perDumbbell: loadFactor(data, e.variant.weightId) === 2, ...setStats(e.sets, loadFactor(data, e.variant.weightId)) })),
+    ...(tm ? { time: { at: new Date(tm.t0 * 1000).toTimeString().slice(0, 5), dur: tm.dur, rest: tm.rest, move: tm.move, over: tm.over } } : {}),
+    exercises: s.exercises.map(e => ({ weightId: e.variant.weightId, name: e.variant.name, variantId: e.variant.id, instead: e.instead, position: w.slots.indexOf(e.slot) + 1, status: e.slot.status, sets: e.sets.map(({ weight, reps }) => ({ weight, reps })), perDumbbell: loadFactor(data, e.variant.weightId) === 2, ...setStats(e.sets, loadFactor(data, e.variant.weightId)), ...slotTime(tm, seen, e.slot) })),
     skipped: w.slots.filter(s => s.status === 'skipped').map(s => s.name) };
 }
 const bounds = (shown, all) => ({ shown: shown.length, totalCompleted: all.length, earliestAvailable: shown[0]?.date || null, description: `Последние ${shown.length} из ${all.length} завершённых; за пределами выборки данные не переданы.` });

@@ -15,7 +15,8 @@ export function initialData() {
 
 const isTime = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const optionalTime = value => value == null || isTime(value);
-const validSavedSet = set => set && typeof set.id === 'string' && Number.isFinite(set.weight) && set.weight >= 0 && Number.isInteger(set.reps) && set.reps > 0;
+const optionalStamp = value => value === undefined || Number.isInteger(value); // analytics stamp, seconds since epoch
+const validSavedSet = set => set && typeof set.id === 'string' && Number.isFinite(set.weight) && set.weight >= 0 && Number.isInteger(set.reps) && set.reps > 0 && optionalStamp(set.t);
 const isMap = value => !!value && typeof value === 'object' && !Array.isArray(value);
 
 // Minimal shape check for a backup file before asking the user to replace their data.
@@ -161,7 +162,7 @@ function validateV2(data) {
     for (const slot of w.slots) {
       if (slotIds.has(slot?.id)) invalid('Повторяющийся пункт тренировки');
       slotIds.add(slot?.id);
-      if (!slot || typeof slot.id !== 'string' || typeof slot.name !== 'string' || !Array.isArray(slot.variants) || !slot.variants.length || !['pending', 'done', 'skipped'].includes(slot.status) || !isMap(slot.performed))
+      if (!slot || typeof slot.id !== 'string' || typeof slot.name !== 'string' || !Array.isArray(slot.variants) || !slot.variants.length || !['pending', 'done', 'skipped'].includes(slot.status) || !isMap(slot.performed) || !optionalStamp(slot.t1))
         invalid('Неверный формат упражнения тренировки');
       if (new Set(slot.variants.map(v => v?.id)).size !== slot.variants.length) invalid('Повторяющийся вариант упражнения');
       if (slot.variants.some(v => !v || typeof v.id !== 'string' || typeof v.name !== 'string' || (v.weightId !== null && typeof v.weightId !== 'string')) || !slot.variants.some(v => v.id === slot.selectedId))

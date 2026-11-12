@@ -40,11 +40,11 @@ export function createUseCases({ store, clock = () => new Date(), coach }) {
     finishWorkout: id => run(d => workouts.finishWorkout(d, id, clock())),
     deleteWorkout: id => run(d => workouts.deleteWorkout(d, id)),
     selectVariant: (id, slotId, variantId) => run(d => workouts.selectVariant(d, id, slotId, variantId)),
-    completeSlot: (id, slotId) => run(d => workouts.completeSlot(d, id, slotId)),
+    completeSlot: (id, slotId) => run(d => workouts.completeSlot(d, id, slotId, clock())),
     toggleSkip: (id, slotId) => run(d => workouts.toggleSkip(d, id, slotId)),
     openDraft: (id, slotId, variantId) => run(d => workouts.openDraft(d, id, slotId, variantId)),
     editDraft: (id, slotId, variantId, field, value) => inPlace(d => workouts.editDraft(d, id, slotId, variantId, field, value)),
-    saveSet: (id, slotId, variantId, input) => run(d => workouts.saveSet(d, id, slotId, variantId, input)),
+    saveSet: (id, slotId, variantId, input) => run(d => workouts.saveSet(d, id, slotId, variantId, input, clock())),
     updateSet: (id, slotId, variantId, setId, input) => run(d => workouts.updateSet(d, id, slotId, variantId, setId, input)),
     removeSet: (id, slotId, variantId, setId) => run(d => workouts.removeSet(d, id, slotId, variantId, setId)),
 

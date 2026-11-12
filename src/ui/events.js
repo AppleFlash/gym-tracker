@@ -6,6 +6,7 @@ import * as home from './screens/home.js';
 import * as workout from './screens/workout.js';
 import * as exercise from './screens/exercise.js';
 import * as result from './screens/result.js';
+import * as time from './screens/time.js';
 import * as chat from './screens/chat.js';
 import * as profile from './screens/profile.js';
 import * as history from './screens/history.js';
@@ -17,12 +18,13 @@ import * as variants from './sheets/variants.js';
 import * as edit from './sheets/edit.js';
 import * as carousel from './components/carousel.js';
 import * as segments from './components/segment-progress.js';
+import * as rhythm from './components/rhythm-strip.js';
 import * as exerciseCard from './components/exercise-card.js';
 import * as sortable from './components/sortable-list.js';
 import * as order from './sheets/order.js';
 import * as note from './sheets/note.js';
 
-const features = [home, workout, exercise, result, chat, profile, history, sets, catalog, catalogList, catalogAi, variants, edit, carousel, segments, exerciseCard, sortable, order, note];
+const features = [home, workout, exercise, result, time, chat, profile, history, sets, catalog, catalogList, catalogAi, variants, edit, carousel, segments, rhythm, exerciseCard, sortable, order, note];
 
 const shellActions = {
   tab: ({ id }) => go(id === 'day' ? 'workouts' : id),

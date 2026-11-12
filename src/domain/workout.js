@@ -1,7 +1,7 @@
 // Workouts: one run of a day template. A workout keeps its own snapshot of slots and variants, the variant chosen
 // for this run and the sets actually saved, so later template edits never rewrite history.
 // Drafts (unsaved input rows) live apart from saved sets in data.drafts[workoutId]['slotId:variantId'].
-import { uid, localDate, fail } from './shared.js';
+import { uid, localDate, fail, sec } from './shared.js';
 import { DAYS, variantsOf, sameMuscleGroup } from './program.js';
 
 export const ROTATION = ['A', 'B', 'C'];
@@ -87,10 +87,11 @@ function slotRef(data, workoutId, slotId, variantId, { active = false } = {}) {
   return { workout, slot };
 }
 
-export function saveSet(data, workoutId, slotId, variantId, input) {
+// Analytics stamps (see timing.js): set.t = the moment the set was added, slot.t1 = the moment the exercise was finished.
+export function saveSet(data, workoutId, slotId, variantId, input, now) {
   const ref = slotRef(data, workoutId, slotId, variantId, { active: true });
   if (!ref) return false;
-  const set = { id: uid(), ...parseSet(input) };
+  const set = { id: uid(), ...parseSet(input), t: sec(now) };
   (ref.slot.performed[variantId] ||= { sets: [] }).sets.push(set);
   if (ref.slot.status === 'skipped') ref.slot.status = 'pending';
   if (draftRow(data, workoutId, slotId, variantId)) dropDraftRow(data, workoutId, slotId, variantId);
@@ -113,6 +114,7 @@ export function removeSet(data, workoutId, slotId, variantId, setId) {
   if (!ref.slot.performed[variantId].sets.length) delete ref.slot.performed[variantId];
   if (!slotSets(ref.slot).length && ref.slot.status === 'done' && !ref.slot.legacyDone)
     ref.slot.status = ref.workout.status === 'completed' ? 'skipped' : 'pending';
+  if (!slotSets(ref.slot).length) delete ref.slot.t1;
 }
 
 /* ---------- Slots ---------- */
@@ -135,13 +137,14 @@ export function selectVariant(data, workoutId, slotId, variantId) {
 }
 
 // Saves a filled draft of the chosen variant first, then marks the slot done. Needs at least one saved set.
-export function completeSlot(data, workoutId, slotId) {
+export function completeSlot(data, workoutId, slotId, now) {
   const ref = slotRef(data, workoutId, slotId, null, { active: true });
   if (!ref) return false;
   const variant = selectedVariant(ref.slot), row = draftRow(data, workoutId, slotId, variant.id);
-  if (row && isFilled(row)) saveSet(data, workoutId, slotId, variant.id, row);
+  if (row && isFilled(row)) saveSet(data, workoutId, slotId, variant.id, row, now);
   if (!slotSets(ref.slot).length) fail('Сначала сохраните хотя бы один подход.');
   ref.slot.status = 'done';
+  ref.slot.t1 = sec(now);
 }
 
 export function toggleSkip(data, workoutId, slotId) {
@@ -163,12 +166,21 @@ export function startWorkout(data, day, now) {
   return workout.id;
 }
 
+// Exercises left open when the workout is finished get an end stamp: the one the user was in (latest activity of
+// the whole workout) ends with the workout, the others at their last set. Slots without stamped sets (old data) stay unstamped.
+function closeOpenSlots(workout, nowSec) {
+  const last = slot => Math.max(slot.t1 ?? 0, ...slotSets(slot).map(s => s.t ?? 0));
+  const latest = Math.max(0, ...workout.slots.map(last));
+  for (const slot of workout.slots) if (slot.t1 === undefined && last(slot)) slot.t1 = last(slot) === latest ? nowSec : last(slot);
+}
+
 // Partial finish is allowed: slots with sets are done, the rest skipped.
 export function finishWorkout(data, workoutId, now) {
   const workout = findWorkout(data, workoutId);
   if (workout?.status !== 'active') return false;
   if (firstDraft(data, workout)) fail('Сохраните или удалите черновик подхода.');
   if (!workoutSets(workout).length && !workout.slots.some(s => s.legacyDone)) fail('Запишите хотя бы один подход или удалите занятие.');
+  closeOpenSlots(workout, sec(now));
   for (const slot of workout.slots) slot.status = slotSets(slot).length || slot.legacyDone ? 'done' : 'skipped';
   Object.assign(workout, { status: 'completed', completedAt: now.toISOString(), date: localDate(now) });
   delete data.drafts[workoutId];

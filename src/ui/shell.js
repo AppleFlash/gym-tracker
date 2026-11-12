@@ -8,6 +8,7 @@ import { homePage } from './screens/home.js';
 import { workoutPage, exerciseMenuHtml } from './screens/workout.js';
 import { exercisePage, itemPage } from './screens/exercise.js';
 import { resultPage } from './screens/result.js';
+import { timePage } from './screens/time.js';
 import { historyDetailPage } from './screens/history.js';
 import { chatPage, drawChat, agreementsHtml } from './screens/chat.js';
 import { profilePage, progressPage, historyPage, exercisesPage, settingsPage } from './screens/profile.js';
@@ -56,6 +57,7 @@ function pageHtml({ tab, id }) {
     return known ? exercisePage(tab, id) : workoutPage(tab);
   }
   if (tab === 'result' && id) return resultPage(id);
+  if (tab === 'time' && id) return timePage(id);
   if (tab === 'item' && id) return itemPage(id);
   return (PAGES[tab] || homePage)();
 }

@@ -6,31 +6,34 @@ import { ctx, view, data, applied, rerender } from '../context.js';
 import { esc, helpButton } from '../format.js';
 import { discardForm } from './catalog.js';
 
-const field = (name, label, value = '', type = 'text', wide = false, mode = '') =>
-  `<label class="field ${wide ? 'wide' : ''}">${label}<input name="${name}" type="${type}" value="${esc(value)}" ${mode} autocomplete="off"></label>`;
 const recordOf = m => groupItem(data(), m.group, m.id)?.records.find(r => r.id === m.recordId);
 const setOf = m => setsOf(findSlot(findWorkout(data(), m.workoutId), m.slotId) || { performed: {} }, m.variantId).find(s => s.id === m.setId);
 const setRef = m => [m.workoutId, m.slotId, m.variantId, m.setId];
 
+// Weight and reps share one look in both sheets: label inside the field, numbers in tabular figures.
+const qsField = (id, name, label, value, mode, help = '') =>
+  `<div class="qs-field"><label for="${id}">${label}</label>${help}<input id="${id}" name="${name}" value="${esc(value)}" ${mode} autocomplete="off"></div>`;
+
+// Same layout as the note sheet: title, fields, a quiet delete row, pinned Save | Cancel. State: view.modal = {type: 'set'|'record', ..., dirty}.
 export function editSheetHtml() {
   const m = view.modal;
-  let title = '', body = '', removable = false;
+  let title = '', intro = '', body = '', removeLabel = '';
   if (m.type === 'set') {
     const s = setOf(m), variant = findSlot(findWorkout(data(), m.workoutId), m.slotId)?.variants.find(v => v.id === m.variantId);
     title = 'Подход';
-    removable = !!s;
-    body = `<div class="field wide"><strong>${esc(variant?.name || '')}</strong></div>`
-      + `<div class="qs-grid"><div class="qs-field"><label for="ed-weight">Вес, кг</label>${helpButton('weightHelp', 'Как вводить вес')}<input id="ed-weight" name="weight" value="${esc(s?.weight ?? '')}" inputmode="decimal" autocomplete="off"></div>`
-      + `<div class="qs-field"><label for="ed-reps">Повторы</label><input id="ed-reps" name="reps" value="${esc(s?.reps ?? '')}" inputmode="numeric" pattern="[0-9]*" autocomplete="off"></div>${dumbbellHint(variant)}</div>`;
+    intro = variant?.name || '';
+    if (s) removeLabel = 'Удалить подход';
+    body = `<div class="qs-grid">${qsField('ed-weight', 'weight', 'Вес, кг', s?.weight ?? '', 'inputmode="decimal"', helpButton('weightHelp', 'Как вводить вес'))}${qsField('ed-reps', 'reps', 'Повторы', s?.reps ?? '', 'inputmode="numeric" pattern="[0-9]*"')}${dumbbellHint(variant)}</div>`;
   }
   if (m.type === 'record') {
     const r = recordOf(m);
     title = 'Запись журнала';
-    removable = !!r;
-    body = field('weight', 'Вес, кг', r?.weight ?? '', 'text', false, 'inputmode="decimal"') + field('reps', 'Повторения (можно диапазон)', r?.reps ?? '', 'text', false, 'inputmode="decimal"') + field('date', 'Дата', r?.date ?? '', 'date', true)
+    if (r) removeLabel = 'Удалить запись';
+    body = `<div class="qs-grid">${qsField('ed-weight', 'weight', 'Вес, кг', r?.weight ?? '', 'inputmode="decimal"')}${qsField('ed-reps', 'reps', 'Повторения', r?.reps ?? '', 'inputmode="decimal"')}</div>`
+      + `<label class="field edit-date">Дата<input name="date" type="date" value="${esc(r?.date ?? '')}" autocomplete="off"></label>`
       + `<label class="pill"><input name="up" type="checkbox" ${r?.up ? 'checked' : ''}> ↑ Увеличить вес в следующий раз</label>`;
   }
-  return `<dialog class="modal"><section class="card"><div class="sheet-nav"><div class="nav-side"></div><h2 class="sheet-title">${title}</h2><div class="nav-side end"><button type="button" class="nav-action" data-action="close">Закрыть</button></div></div><form id="editForm"><div class="form-grid" style="margin-top:14px">${body}</div><div class="form-actions"><button class="btn primary" type="submit">Сохранить</button><button class="btn" type="button" data-action="close">Отмена</button>${removable ? '<button class="btn danger" type="button" data-action="removeModal">Удалить</button>' : ''}</div></form></section></dialog>`;
+  return `<dialog class="modal technique-modal" aria-labelledby="editTitle"><section class="card catalog-shell technique-shell"><div class="catalog-content technique-content"><h2 class="technique-title" id="editTitle">${title}</h2>${intro ? `<p class="technique-intro">${esc(intro)}</p>` : ''}<form id="editForm">${body}</form>${removeLabel ? `<button type="button" class="edit-remove" data-action="removeModal">${removeLabel}</button>` : ''}</div><footer class="sheet-footer split"><button class="btn primary" type="submit" form="editForm">Сохранить</button><button class="btn" type="button" data-action="close">Отмена</button></footer></section></dialog>`;
 }
 
 export function closeSheet() {
@@ -60,6 +63,7 @@ export const actions = {
 };
 
 export const listeners = [
+  ['input', ev => { if (ev.target.closest('#editForm') && view.modal) view.modal.dirty = true; }],
   ['submit', ev => {
     if (ev.target.id !== 'editForm') return;
     ev.preventDefault();
@@ -67,6 +71,7 @@ export const listeners = [
     const result = m.type === 'set' ? ctx.uc.updateSet(...setRef(m), { weight: form.get('weight'), reps: form.get('reps') })
       : ctx.uc.saveRecord({ group: m.group, id: m.id, recordId: m.recordId }, { weight: form.get('weight'), reps: form.get('reps'), date: form.get('date'), up: form.has('up') });
     if (result?.error) return alert(result.error);
+    m.dirty = false;
     closeSheet();
   }],
 ];
