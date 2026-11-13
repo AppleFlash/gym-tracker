@@ -1,7 +1,7 @@
 // App shell: tab bar, navigation bar, current screen and the open sheet. render() redraws all of it.
 import { DAYS, slotOf } from '../domain/program.js';
 import { activeWorkouts, activeWorkoutOf, findSlot } from '../domain/workout.js';
-import { view, data, route } from './context.js';
+import { ctx, view, data, route } from './context.js';
 import { esc, chevron, plusIcon, moreIcon } from './format.js';
 import { parentRoute, routeTitle, tabOf } from './router.js';
 import { homePage } from './screens/home.js';
@@ -28,7 +28,8 @@ const TABS = [
 
 function tabBarHtml() {
   const current = tabOf(data().tab), running = activeWorkouts(data()).length > 0;
-  return TABS.map(([id, name, icon]) => {
+  const hasKey = !!ctx.apiKey.get();
+  return TABS.filter(([id]) => id !== 'chat' || hasKey).map(([id, name, icon]) => {
     const on = id === current;
     const dot = id === 'day' && running && !on ? '<span class="dot" aria-label="Идёт тренировка"></span>' : '';
     return `<button class="tab ${on ? 'active' : ''}" data-action="tab" data-id="${id}" aria-current="${on ? 'page' : 'false'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>${name}${dot}</button>`;

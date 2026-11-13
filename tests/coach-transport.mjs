@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createDeepSeekProxyGateway } from '../src/adapters/deepseek-proxy-gateway.js';
+import { createDeepSeekGateway } from '../src/adapters/deepseek-gateway.js';
 import { POST } from '../proxy/api/chat.js';
 import { initialData } from '../src/domain/schema.js';
 import { createStore } from '../src/application/store.js';
@@ -26,19 +26,22 @@ try {
   let calls = 0;
   globalThis.fetch = async (_, options) => {
     const request = JSON.parse(options.body); calls++;
+    assert.equal(options.headers.Authorization, 'Bearer user-key');
+    assert.equal(request.model, 'deepseek-flash');
     assert.deepEqual(request.messages, [{ role: 'system', content: 'json rules' }, { role: 'assistant', content: 'old' }, { role: 'user', content: 'q' }]);
     assert.deepEqual(request.response_format, { type: 'json_object' });
     assert.equal(JSON.stringify(request).includes('transport-test-only'), false);
     return new Response(JSON.stringify({ model: 'deepseek-flash', choices: [{ message: { content: calls === 1 ? '   ' : '{"text":"OK"}' } }] }));
   };
-  const gateway = createDeepSeekProxyGateway('https://proxy.test/api/chat');
+  const gateway = createDeepSeekGateway(() => 'user-key');
   assert.equal((await gateway.ask({ system: 'json rules', messages: [{ role: 'model', text: 'old' }, { role: 'user', text: 'q' }], json: true })).text, '{"text":"OK"}');
   assert.equal(calls, 2);
   calls = 0;
   globalThis.fetch = async () => { calls++; return new Response('{"choices":[{"message":{"content":""}}]}'); };
   await assert.rejects(gateway.ask({ system: 'json', messages: [], json: true }), /пустой ответ/);
   assert.equal(calls, 2);
-  console.log('PASS DeepSeek transport: server-only key, fixed model, thinking disabled, JSON object, retry 503/empty, role mapping');
+  await assert.rejects(createDeepSeekGateway(() => '').ask({ system: 's', messages: [] }), /API Key/);
+  console.log('PASS DeepSeek transport: user key, fixed model, thinking disabled, JSON object, retry 503/empty, role mapping');
 
   // Exercise real validators and use-case entry points with the new gateway protocol.
   const data = initialData(), slot = data.days.A[0], group = data.groups.find(g => g.items.some(i => i.id === slot.weightId));

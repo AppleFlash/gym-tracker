@@ -1,5 +1,5 @@
 // UI adapter wiring. main.js fills ctx; screens read state through it and call use cases.
-export const ctx = { store: null, uc: null, render: () => {} };
+export const ctx = { store: null, uc: null, apiKey: null, render: () => {} };
 
 // Screen-only state: never persisted (drafts themselves are persisted by the use cases).
 export const view = {
@@ -14,6 +14,7 @@ export const view = {
   chat: [], chatBusy: false,
   chatContext: null,         // {kind: 'workout', id, label} | {kind: 'exercise', weightId, label}
   chatPrefill: '',
+  keyEditing: false,         // settings: API key field is open for input
 };
 
 export const data = () => ctx.store.state;

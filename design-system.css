@@ -597,3 +597,10 @@ button.rs-long:focus-visible{outline:2px solid var(--label);outline-offset:-2px}
 .time-hero .rs-legend{margin-top:0}
 .time-flow{margin-top:var(--space-4)}
 .time-flow .card{margin-bottom:0}
+
+/* ---------- API key row ---------- */
+.key-row{display:flex;gap:var(--space-2);align-items:center;margin-top:var(--space-3)}
+.key-row .field{flex:1;min-width:0;margin:0}
+.key-row>.btn{flex:none;width:var(--tap-size);padding:0}
+.key-row>.btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.key-row+.footer-actions{margin-top:var(--space-3)}

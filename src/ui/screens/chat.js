@@ -43,6 +43,7 @@ export function drawChat() {
 
 // Opens the chat with a context and a prefilled question; nothing is sent automatically.
 export function discuss(context, question) {
+  if (!ctx.apiKey.get()) return alert('Сначала укажите API Key: Профиль → Настройки.');
   if (view.chatBusy) return go('chat');
   Object.assign(view, { chat: [], chatContext: context, chatPrefill: question });
   go('chat');

@@ -1,6 +1,7 @@
 // Composition root: the only place that knows every layer. Builds adapters, store and use cases, starts the UI.
 import { createLocalStorageRepository } from './adapters/local-storage-repository.js';
-import { createDeepSeekProxyGateway } from './adapters/deepseek-proxy-gateway.js';
+import { createDeepSeekGateway } from './adapters/deepseek-gateway.js';
+import { apiKeyStorage } from './adapters/api-key-storage.js';
 import { createStore } from './application/store.js';
 import { createUseCases } from './application/use-cases.js';
 import { ctx, view } from './ui/context.js';
@@ -14,12 +15,11 @@ import { findItem } from './domain/catalog.js';
 import { coachPrompt } from './application/coach.js';
 
 const STORAGE_KEY = 'gym-tracker-v1';
-const AI_URL = 'https://gym-ai-proxy-personal-7cd3.vercel.app/api/chat';
 
 const status = document.getElementById('saveStatus');
 const repository = createLocalStorageRepository(STORAGE_KEY, text => { status.textContent = text; });
 const store = createStore(repository);
-Object.assign(ctx, { store, uc: createUseCases({ store, coach: createDeepSeekProxyGateway(AI_URL) }), render });
+Object.assign(ctx, { store, uc: createUseCases({ store, coach: createDeepSeekGateway(apiKeyStorage.get) }), apiKey: apiKeyStorage, render });
 
 bindEvents();
 watchViewport();

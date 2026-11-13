@@ -1,7 +1,7 @@
 // Profile: four tiles leading to progress, workout history, all exercises and settings.
 import { catalogItems } from '../../domain/catalog.js';
 import { progressList, historyNewestFirst, performancesOf, representativeSet } from '../../domain/workout.js';
-import { ctx, view, data, applied } from '../context.js';
+import { ctx, view, data, applied, rerender } from '../context.js';
 import { esc, shortDate, longDate, setText, plural } from '../format.js';
 import { go } from '../router.js';
 import { historyChartPage } from './history.js';
@@ -35,9 +35,21 @@ export function historyPage() {
 
 export const exercisesPage = () => `<h1>Все упражнения</h1>${catalogBrowser('page')}`;
 
+const ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+const PENCIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>';
+
+function apiKeyCard() {
+  const key = ctx.apiKey.get(), editing = !key || view.keyEditing;
+  const row = editing
+    ? `<form class="key-row" data-key-form><div class="field"><input type="password" name="key" placeholder="Вставьте ключ DeepSeek" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="API Key"></div><button class="btn primary" aria-label="Сохранить ключ">${ARROW}</button></form>`
+    : `<div class="key-row"><div class="field"><input readonly value="${esc(key.slice(0, Math.min(6, key.length >> 1)) + '********')}" aria-label="API Key"></div><button class="btn" data-action="editApiKey" aria-label="Изменить ключ">${PENCIL}</button></div>`;
+  return `<section class="card"><h2>API Key</h2>${row}<div class="footer-actions"><button class="btn danger" data-action="removeApiKey" ${key ? '' : 'disabled'}>Удалить</button></div></section>`;
+}
+
 export function settingsPage() {
   const p = data().profile;
   return `<h1>Настройки</h1>
+    ${apiKeyCard()}
     <section class="card"><h2>Для ИИ-тренера</h2>
       <label class="field wide">Цель тренировок<textarea id="profileGoal" data-profile-field="goal" rows="2" placeholder="Например: сила в базовых упражнениях">${esc(p.goal)}</textarea></label>
       <label class="field wide">Дополнительный контекст<textarea data-profile-field="context" rows="4" placeholder="Опыт, ограничения, травмы, оборудование…">${esc(p.context)}</textarea></label>
@@ -59,6 +71,8 @@ function download(text, name) {
 
 
 export const actions = {
+  editApiKey: () => { view.keyEditing = true; rerender(); },
+  removeApiKey: () => { ctx.apiKey.clear(); view.keyEditing = false; rerender(); },
   removeCoachFact: ({ id }) => { if (applied(ctx.uc.removeFact(id))) ctx.render(); },
   export: () => {
     const text = ctx.uc.exportBackup();
@@ -71,6 +85,14 @@ export const actions = {
 
 export const listeners = [
   ['submit', ev => {
+    if (ev.target.dataset.keyForm !== undefined) {
+      ev.preventDefault();
+      const key = ev.target.elements.key.value.trim();
+      if (!key) return;
+      if (!ctx.apiKey.set(key)) return alert('Не удалось сохранить ключ в браузере.');
+      view.keyEditing = false;
+      return rerender();
+    }
     const id = ev.target.dataset.factForm;
     if (!id) return;
     ev.preventDefault();
