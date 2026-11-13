@@ -84,7 +84,7 @@ export function workoutPage(day) {
     dock = `<p class="dock-note">Всего объём с отягощением: ${kg(workoutSummary(data(), workout).volume)}</p><button class="btn block ${states.every(s => s === 'done' || s === 'skipped') ? 'primary' : 'tinted'}" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button>`;
   } else {
     const other = activeWorkouts(data())[0], last = lastCompleted(data(), day);
-    caption = `${plural(template.length, EXERCISES)} · ${last ? 'последняя ' + shortDate(last.date) : 'ещё не выполнялась'}`;
+    caption = plural(template.length, EXERCISES) + (last ? ' · последняя ' + shortDate(last.date) : '');
     segments = template.map((slot, i) => ({ id: slot.id, state: 'pending', label: `${i + 1}. ${slot.name}` }));
     slides = template.map(slot => previewCard(day, slot));
     key = 'template:' + day;

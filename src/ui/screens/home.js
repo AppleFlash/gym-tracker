@@ -1,7 +1,7 @@
 // Home: which workout is next (or running now) and the program list. Opening a template never starts anything.
 import { ROTATION, nextDay, dayAfter, activeWorkouts, activeWorkoutOf, lastCompleted, workoutProgress, findWorkout, firstDraft, workoutSummary } from '../../domain/workout.js';
 import { ctx, view, data, applied } from '../context.js';
-import { esc, dayTitle, dayLetter, shortDate, longDate, ring, plural, EXERCISES } from '../format.js';
+import { esc, dayTitle, dayLetter, shortDate, longDate, ring, plural, extraDayIcon, EXERCISES } from '../format.js';
 import { go } from '../router.js';
 
 function heroHtml() {
@@ -19,16 +19,20 @@ function heroHtml() {
     return `<section class="card hero"><div class="hero-row">${ring(p.pct, dayLetter(active.day), 'md')}<div class="hero-body"><span class="hero-label">Сейчас</span><h2>${dayTitle(active.day)}</h2><p class="muted">${p.done} из ${plural(p.total, EXERCISES)} завершено</p></div></div><button class="btn primary block" data-action="openWorkout" data-day="${active.day}">Продолжить ${dayLetter(active.day)}</button></section>`;
   }
   const next = nextDay(data()), last = ROTATION.map(d => lastCompleted(data(), d)).filter(Boolean).sort((a, b) => a.completedAt.localeCompare(b.completedAt)).at(-1);
-  return `<section class="card hero"><div class="hero-body"><span class="hero-label">Следующая тренировка</span><h2>${dayTitle(next)}</h2><p class="muted">${last ? `Последняя завершённая: ${last.day} · ${esc(longDate(last.date).replace(/ \d{4} г\.$/, ''))}` : `Начните с тренировки ${next}`}</p></div><button class="btn primary block" data-action="startWorkout" data-day="${next}">Начать ${next}</button></section>`;
+  return `<section class="card hero"><div class="hero-body"><span class="hero-label">Следующая тренировка</span><h2>${dayTitle(next)}</h2><p class="muted">${last ? `Последняя завершённая: ${last.day} · ${esc(longDate(last.date).replace(/ \d{4} г\.$/, ''))}` : plural((data().days[next] || []).length, EXERCISES)}</p></div><button class="btn primary block" data-action="startWorkout" data-day="${next}">Начать ${next}</button></section>`;
 }
 
 function dayRow(day) {
   const active = activeWorkoutOf(data(), day), last = lastCompleted(data(), day), count = (data().days[day] || []).length;
   const next = !activeWorkouts(data()).length && day === nextDay(data()) || activeWorkouts(data()).length === 1 && day === dayAfter(activeWorkouts(data())[0].day);
   const tag = active ? '<span class="tag">В процессе</span>' : next && day !== 'star' ? '<span class="tag quiet">Следующая</span>' : '';
-  const badge = `<span class="day-badge" aria-hidden="true">${dayLetter(day)}</span>`;
-  const start = !activeWorkouts(data()).length && count ? `<button class="btn small" data-action="startWorkout" data-day="${day}" aria-label="Начать тренировку ${dayLetter(day)}">Начать</button>` : '';
-  return `<div class="workout-start-row"><button class="workout-row" data-action="openWorkout" data-day="${day}">${badge}<span class="workout-row-body"><strong>${dayTitle(day)}${tag}</strong><span class="muted">${plural(count, EXERCISES)} · ${last ? 'последняя ' + esc(shortDate(last.date)) : 'ещё не выполнялась'}</span></span><span class="row-chevron" aria-hidden="true">›</span></button>${start}</div>`;
+  const badge = `<span class="day-badge${active ? ' active' : ''}" aria-hidden="true">${day === 'star' ? extraDayIcon : dayLetter(day)}</span>`;
+  // Started from the hero or the workout screen; the row only opens the template.
+  const p = active && workoutProgress(data(), active);
+  const caption = active ? `${p.done} из ${plural(p.total, EXERCISES)} завершено`
+    : !count ? 'Добавьте упражнения'
+    : plural(count, EXERCISES) + (last ? ' · последняя ' + esc(shortDate(last.date)) : '');
+  return `<button class="workout-row" data-action="openWorkout" data-day="${day}">${badge}<span class="workout-row-body"><strong>${dayTitle(day)}${tag}</strong><span class="muted">${caption}</span></span><span class="row-chevron" aria-hidden="true">›</span></button>`;
 }
 
 export const homePage = () => `<h1>Тренировки</h1>${heroHtml()}<h2 class="group-title">Программа</h2><section class="card workout-list" aria-label="Программа тренировок">${ROTATION.map(dayRow).join('')}</section><h2 class="group-title">Дополнительно</h2><section class="card workout-list" aria-label="Дополнительная тренировка">${dayRow('star')}</section>`;

@@ -6,10 +6,10 @@
   color-scheme:light dark;
   --bg:#f2f2f7;--surface:#fff;--surface2:#f2f2f7;--sheet-bg:#f2f2f7;
   --fill:rgba(120,120,128,.12);--fill-strong:rgba(120,120,128,.2);
-  --label:#000;--label2:rgba(60,60,67,.6);--label3:rgba(60,60,67,.3);
+  --label:#000;--label2:rgba(60,60,67,.75);--label3:rgba(60,60,67,.3);
   --separator:rgba(60,60,67,.16);
   --material:rgba(242,242,247,.8);--alert-bg:rgba(246,246,248,.88);
-  --accent:#30d158;--accent-text:#1f8a3b;--ring-a:#22c34a;--ring-b:#8fdc2a;--accent-soft:rgba(48,209,88,.16);--on-accent:#03240e;
+  --accent:#30d158;--accent-text:#1a7a33;--ring-a:#22c34a;--ring-b:#8fdc2a;--accent-soft:rgba(48,209,88,.16);--on-accent:#03240e;
   --red:#ff3b30;--blue:#007aff;--amber:#ff9500;--over-text:#b25f00;--over-soft:color-mix(in srgb,var(--amber) 24%,transparent);
   --shadow:0 1px 3px rgba(0,0,0,.06);--dim:rgba(0,0,0,.3);
   /* legacy aliases */
@@ -242,6 +242,8 @@ dialog.ds-alert.closing::backdrop{animation:fade-out .16s ease forwards}
 .ring-md .ring-track,.ring-md .ring-fill{stroke-width:5}
 .ring-md text{font-size:16px}
 .day-badge{display:grid;place-items:center;width:48px;height:48px;flex:none;border-radius:50%;background:var(--fill);font:700 18px var(--font-num);color:var(--label)}
+.day-badge.active{background:var(--accent-soft);color:var(--accent-text)}
+.day-badge svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .tag.quiet{color:var(--label2);background:var(--fill)}
 .workout-row-body strong .tag{vertical-align:2px}
 
@@ -257,13 +259,7 @@ dialog.ds-alert.closing::backdrop{animation:fade-out .16s ease forwards}
 .legacy-actions{display:flex;flex-wrap:wrap;gap:8px}
 
 /* ---------- Workout cards ---------- */
-.workout-start-row{display:flex;align-items:center;border-bottom:.5px solid var(--separator)}
-.workout-start-row:last-child{border-bottom:0}
 *{-webkit-tap-highlight-color:transparent}
-.workout-start-row:active{background:var(--fill)}
-.workout-start-row>.workout-row:active{background:none}
-.workout-start-row>.workout-row{flex:1;min-width:0;border:0}
-.workout-start-row>.btn{flex:none;margin-right:16px;min-height:44px}
 .notice{display:flex;flex-direction:column;align-items:flex-start;gap:10px;background:var(--accent-soft);box-shadow:none}
 .notice p{margin:0;font-size:15px}
 
