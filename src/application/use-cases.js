@@ -87,9 +87,12 @@ export function createUseCases({ store, clock = () => new Date(), coach }) {
     }),
     removeFact: id => run(d => { const i = d.profile.facts.findIndex(f => f.id === id); if (i < 0) return false; d.profile.facts.splice(i, 1); }),
     acceptProposal: proposal => run(d => {
+      const id = proposal.id || uid();
+      // A chat save may fail after the diary commit; the same proposal must remain safe to retry.
+      if (d.profile.facts.some(f => f.id === id) || d.agreements.some(a => a.id === id)) return id;
       const p = validateProposals(d, [proposal])[0];
       if (!p) fail('Предложение больше не доступно. Повторите обсуждение.');
-      const now = clock().toISOString(), id = uid();
+      const now = clock().toISOString();
       if (p.type === 'profile') d.profile.facts.push({ id, text: p.text, createdAt: now });
       else {
         const source = p.baselineWorkoutId && workouts.performancesOf(d, p.scope.weightId).find(r => r.workout.id === p.baselineWorkoutId);

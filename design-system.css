@@ -14,7 +14,7 @@
   --shadow:0 1px 3px rgba(0,0,0,.06);--dim:rgba(0,0,0,.3);
   /* legacy aliases */
   --border:var(--separator);--text:var(--label);--muted:var(--label2);--green:var(--accent);
-  --r-group:16px;--r-control:12px;--navbar-row:64px;--navbar-h:calc(env(safe-area-inset-top,0px) + var(--navbar-row));--tabbar-row:64px;
+  --r-group:16px;--r-control:12px;--navbar-row:64px;--navbar-h:calc(env(safe-area-inset-top,0px) + var(--navbar-row));--tabbar-row:50px;--tabbar-safe:max(0px,calc(env(safe-area-inset-bottom,0px) - 20px));
   --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-6:24px;
   --page-gutter:var(--space-4);--control-inset:var(--space-3);--content-max:850px;--tap-size:44px;
   --ease:cubic-bezier(.32,.72,0,1);
@@ -78,7 +78,7 @@ body.sheet-open .nav{opacity:.4}
 .subtitle,.muted,.note{color:var(--label2)}
 
 /* ---------- Tab bar ---------- */
-.nav{min-height:calc(var(--tabbar-row) + env(safe-area-inset-bottom,0px));align-items:center;background:var(--material);-webkit-backdrop-filter:saturate(180%) blur(22px);backdrop-filter:saturate(180%) blur(22px);border-top:0;box-shadow:0 -.5px 0 var(--separator);padding:0 4px env(safe-area-inset-bottom,0px);transition:opacity .4s var(--ease)}
+.nav{min-height:calc(var(--tabbar-row) + var(--tabbar-safe));align-items:center;background:var(--material);-webkit-backdrop-filter:saturate(180%) blur(22px);backdrop-filter:saturate(180%) blur(22px);border-top:0;box-shadow:0 -.5px 0 var(--separator);padding:0 4px var(--tabbar-safe);transition:opacity .4s var(--ease)}
 .tab{align-self:stretch;justify-content:center;color:var(--label2);font-size:10px;font-weight:500;gap:3px}
 .tab svg{width:26px;height:26px}
 .tab.active{color:var(--accent-text)}
@@ -258,6 +258,9 @@ dialog.ds-alert.closing::backdrop{animation:fade-out .16s ease forwards}
 /* ---------- Workout cards ---------- */
 .workout-start-row{display:flex;align-items:center;border-bottom:.5px solid var(--separator)}
 .workout-start-row:last-child{border-bottom:0}
+*{-webkit-tap-highlight-color:transparent}
+.workout-start-row:active{background:var(--fill)}
+.workout-start-row>.workout-row:active{background:none}
 .workout-start-row>.workout-row{flex:1;min-width:0;border:0}
 .workout-start-row>.btn{flex:none;margin-right:16px;min-height:44px}
 .notice{display:flex;flex-direction:column;align-items:flex-start;gap:10px;background:var(--accent-soft);box-shadow:none}

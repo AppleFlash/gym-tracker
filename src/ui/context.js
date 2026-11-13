@@ -1,7 +1,7 @@
 // UI adapter wiring. main.js fills ctx; screens read state through it and call use cases.
-export const ctx = { store: null, uc: null, apiKey: null, render: () => {} };
+export const ctx = { store: null, chats: null, uc: null, apiKey: null, render: () => {} };
 
-// Screen-only state: never persisted (drafts themselves are persisted by the use cases).
+// UI state. The chat transcript is restored from its own repository; workout drafts live in the diary.
 export const view = {
   exerciseId: null,          // route id: slot in a day, workout for 'result', catalog item for 'item'
   modal: null,               // open sheet: {type: 'catalog'|'variants'|'record'|'day'|'set', ...}

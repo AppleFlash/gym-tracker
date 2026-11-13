@@ -3,6 +3,8 @@ import { createLocalStorageRepository } from './adapters/local-storage-repositor
 import { createDeepSeekGateway } from './adapters/deepseek-gateway.js';
 import { apiKeyStorage } from './adapters/api-key-storage.js';
 import { createStore } from './application/store.js';
+import { createChatHistory } from './application/chat-history.js';
+import { restoreChat } from './ui/screens/chat.js';
 import { createUseCases } from './application/use-cases.js';
 import { ctx, view } from './ui/context.js';
 import { render } from './ui/shell.js';
@@ -19,8 +21,9 @@ const STORAGE_KEY = 'gym-tracker-v1';
 const status = document.getElementById('saveStatus');
 const repository = createLocalStorageRepository(STORAGE_KEY, text => { status.textContent = text; });
 const store = createStore(repository);
-Object.assign(ctx, { store, uc: createUseCases({ store, coach: createDeepSeekGateway(apiKeyStorage.get) }), apiKey: apiKeyStorage, render });
+Object.assign(ctx, { store, chats: createChatHistory(createLocalStorageRepository('gym-tracker-chats-v1')), uc: createUseCases({ store, coach: createDeepSeekGateway(apiKeyStorage.get) }), apiKey: apiKeyStorage, render });
 
+restoreChat();
 bindEvents();
 watchViewport();
 syncViewport();
@@ -28,6 +31,7 @@ render();
 // Never overwrite unreadable data silently: it was archived, and the user is told where.
 if (store.loadError) alert(`Не удалось прочитать сохранённые данные (${store.loadError.message}). Копия сохранена в браузере под ключом «${store.loadError.copy}». Приложение открыто с начальными данными.`);
 store.persist();
+if (ctx.chats.loadError) alert(ctx.chats.loadError);
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(err => console.warn('Offline cache unavailable:', err)));

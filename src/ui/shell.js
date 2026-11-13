@@ -10,7 +10,7 @@ import { exercisePage, itemPage } from './screens/exercise.js';
 import { resultPage } from './screens/result.js';
 import { timePage } from './screens/time.js';
 import { historyDetailPage } from './screens/history.js';
-import { chatPage, drawChat, agreementsHtml } from './screens/chat.js';
+import { chatPage, drawChat, agreementsHtml, chatHistoryHtml } from './screens/chat.js';
 import { profilePage, progressPage, historyPage, exercisesPage, settingsPage } from './screens/profile.js';
 import { catalogHtml, catalogDepth } from './sheets/catalog.js';
 import { variantsHtml } from './sheets/variants.js';
@@ -66,7 +66,7 @@ function pageHtml({ tab, id }) {
 // Full screen markup for any route; also used for the swipe-back preview of the parent screen.
 export const screenHtml = r => navBarHtml(r) + `<div class="screen-body">${pageHtml(r)}</div>`;
 
-const SHEETS = { agreements: agreementsHtml, catalog: catalogHtml, variants: variantsHtml, technique: techniqueHtml, 'alternative-ai': alternativeHtml, 'exercise-menu': exerciseMenuHtml, 'exercise-order': orderHtml, note: noteHtml };
+const SHEETS = { agreements: agreementsHtml, 'chat-history': chatHistoryHtml, catalog: catalogHtml, variants: variantsHtml, technique: techniqueHtml, 'alternative-ai': alternativeHtml, 'exercise-menu': exerciseMenuHtml, 'exercise-order': orderHtml, note: noteHtml };
 const sheetHtml = () => !view.modal ? '' : (SHEETS[view.modal.type] || editSheetHtml)();
 
 export function render() {
