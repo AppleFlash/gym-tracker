@@ -129,6 +129,7 @@ body.kb input,body.kb textarea,body.kb select,body.kb .set-entry{scroll-margin-b
 .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:var(--r-control);background:var(--fill);color:var(--accent-text);font-size:16px;font-weight:600;padding:10px 16px;-webkit-tap-highlight-color:transparent;transition:opacity .15s,transform .15s}
 .btn:active{opacity:.55}
 .btn.primary{background:var(--accent);color:var(--on-accent)}
+.btn.tinted{background:var(--accent-soft);color:var(--accent-text)}
 .btn.danger{color:var(--red)}
 .btn.small{min-height:32px;font-size:14px;padding:5px 12px;border-radius:999px}
 .btn.block{width:100%;border-radius:14px}
@@ -454,10 +455,9 @@ button.list-row:active{background:var(--fill)}
 .sp-bar::after{content:"";position:absolute;inset:0;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .5s var(--ease)}
 .sp-cell.checked .sp-bar::after{transform:none}
 .sp-cell.is-current{flex-grow:2.6}
-/* Current step: solid acid-lime fill + glow, taller and wider. Not done = lime→pale lime; done = the done-green flows into lime. */
-.sp-cell.is-current{--hot:color-mix(in srgb,var(--ring-b) 55%,#fff)}
-.sp-cell.is-current .sp-bar{height:14px;background:linear-gradient(90deg,var(--ring-b),var(--hot));box-shadow:0 0 18px 1px color-mix(in srgb,var(--ring-b) 65%,transparent)}
-.sp-cell.is-current.checked .sp-bar::after{background:linear-gradient(90deg,var(--ring-a),var(--ring-b) 55%,var(--hot))}
+/* Current step: taller, wider, acid-lime gradient with a soft glow. Not done = lime; done = the done-green flows into lime. */
+.sp-cell.is-current .sp-bar{height:12px;background:linear-gradient(90deg,color-mix(in srgb,var(--ring-b) 65%,var(--ring-a)),var(--ring-b));box-shadow:0 0 9px color-mix(in srgb,var(--ring-b) 35%,transparent)}
+.sp-cell.is-current.checked .sp-bar::after{background:linear-gradient(90deg,var(--ring-a),var(--ring-b))}
 .sp-cell.is-skipped .sp-bar{background:repeating-linear-gradient(135deg,var(--fill-strong) 0 3px,transparent 3px 6px)}
 .sp-cell:focus-visible .sp-bar{outline:2px solid var(--accent);outline-offset:2px}
 

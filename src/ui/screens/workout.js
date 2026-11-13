@@ -2,7 +2,7 @@
 // During a workout the cards take sets; before it they preview the program of the day and the dock starts the workout.
 import { slotOf } from '../../domain/program.js';
 import { findItem } from '../../domain/catalog.js';
-import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutProgress, workoutSummary, lastPerformance, lastCompleted, draftRow, prefill, volumeOf, loadFactor } from '../../domain/workout.js';
+import { activeWorkouts, activeWorkoutOf, findSlot, selectedVariant, mainVariant, setsOf, slotStatus, workoutSummary, lastPerformance, lastCompleted, draftRow, prefill, volumeOf, loadFactor } from '../../domain/workout.js';
 import { ctx, view, data, applied, rerender } from '../context.js';
 import { esc, nice, kg, dayTitle, dayLetter, shortDate, setsText, plural, EXERCISES } from '../format.js';
 import { go } from '../router.js';
@@ -76,13 +76,12 @@ export function workoutPage(day) {
   const workout = activeWorkoutOf(data(), day), template = data().days[day] || [];
   let caption, segments, slides, key, initial = 0, dock;
   if (workout) {
-    const p = workoutProgress(data(), workout), slots = orderedSlots(workout), states = slots.map(slot => slotStatus(data(), workout, slot));
-    caption = `${p.done} из ${plural(p.total, EXERCISES)}`;
+    const slots = orderedSlots(workout), states = slots.map(slot => slotStatus(data(), workout, slot));
     segments = slots.map((slot, i) => ({ id: slot.id, state: states[i] === 'done' ? 'done' : states[i] === 'skipped' ? 'skipped' : 'pending',
       label: `${i + 1}. ${selectedVariant(slot).name}: ${states[i] === 'done' ? 'завершено' : states[i] === 'skipped' ? 'пропущено' : 'не завершено'}` }));
     slides = slots.map(slot => slotCard(workout, slot));
     key = workout.id; initial = Math.max(0, states.findIndex(s => s !== 'done' && s !== 'skipped'));
-    dock = `<p class="dock-note">Всего объём с отягощением: ${kg(workoutSummary(data(), workout).volume)}</p><button class="btn primary block" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button>`;
+    dock = `<p class="dock-note">Всего объём с отягощением: ${kg(workoutSummary(data(), workout).volume)}</p><button class="btn block ${states.every(s => s === 'done' || s === 'skipped') ? 'primary' : 'tinted'}" data-action="finishWorkout" data-id="${esc(workout.id)}">Завершить тренировку</button>`;
   } else {
     const other = activeWorkouts(data())[0], last = lastCompleted(data(), day);
     caption = `${plural(template.length, EXERCISES)} · ${last ? 'последняя ' + shortDate(last.date) : 'ещё не выполнялась'}`;
